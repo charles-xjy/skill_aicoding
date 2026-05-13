@@ -1,0 +1,12 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "agent": "./chatbot.py:agent"
+  },
+  "env": ".env",
+  "watch_ignore": [
+    "**/search_result/**"
+  ]
+}

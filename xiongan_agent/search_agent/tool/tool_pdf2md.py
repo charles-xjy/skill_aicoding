@@ -106,9 +106,13 @@ def pdf2md(path: str) -> str:
                 return "错误：mineru-api 服务启动超时，请检查 mineru 是否已正确安装。"
             print("✅ mineru-api 已就绪")
 
+        MAX_CHARS = 4000
         print(f"📄 正在解析: {pdf_path.name}")
         md_text = _parse_pdf_via_api(str(pdf_path), base_url)
         print(f"✅ 解析完成，内容长度: {len(md_text)} 字符")
+        if len(md_text) > MAX_CHARS:
+            print(f"  ✂️  内容过长，已截断至 {MAX_CHARS} 字")
+            md_text = md_text[:MAX_CHARS] + f"\n\n[内容已截断，原始长度 {len(md_text)} 字符]"
         return md_text
 
     except requests.exceptions.RequestException as e:

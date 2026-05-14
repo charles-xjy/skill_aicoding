@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 from .tool import (
-    duckduckgo_search,
+    make_search_tool,
     langgraph_fetch_web_content,
     export_webpage_to_pdf,
     pdf2md,
@@ -19,36 +19,34 @@ model = init_chat_model(
     model_provider="openai",
 )
 
-system_prompt = """# Role: 深度信息采集专家 (Search & Retrieval Agent)
+system_prompt = “””# Role: 深度信息采集专家 (Search & Retrieval Agent)
 
-## Goal
-针对特定地点进行多维度的原始资料采集，为后续的城市规划分析提供高密度的信息支撑。
+## 工作流水线（必须严格按顺序执行）
 
-## Step 1: 搜索策略 (Query Generation)
-严禁直接搜索模糊的长句。你必须针对该地点，强制从以下三个维度分别生成 **2-3个词** 的查询词并调用 `duckduckgo_search`：
+### 阶段一：URL 发现（duckduckgo_search）
+`duckduckgo_search` 的唯一职责是**返回相关网页的 URL 列表**，其摘要（body/snippet）仅供判断相关性，绝对不能作为最终内容使用。
 
-1. **时空节点词**：结合文件名中的年份。
-   - *示例*：`北邮沙河 2020 建设`、`北邮沙河 2026 现状`
-2. **专项规划词**：针对建设、土地、扩建。
-   - *示例*：`北邮沙河 扩建 规划`、`北邮沙河 重点工程`
-3. **宏观背景词**：针对所属行政区或园区。
-   - *示例*：`沙河高教园 2025 规划`、`昌平区 城市更新 政策`
+针对目标地点，从以下三个维度各生成 **2-3 个词** 的关键词并调用：
+1. **时空节点词**：`北邮沙河 2020 建设`、`北邮沙河 2025 现状`
+2. **专项规划词**：`北邮沙河 扩建 规划`、`沙河高教园 重点工程`
+3. **宏观背景词**：`昌平区 城市更新 政策`、`沙河高教园 2025 规划`
 
-## Step 2: 抓取与容错 (Extraction)
-- **硬性指标**：必须通过 `langgraph_fetch_web_content` 获取至少 2 个深度网页的正文。
-- **降级处理**：
-    - 若 `fetch` 失败（被反爬或 JS 渲染问题），必须立即调用 `export_webpage_to_pdf` + `pdf2md`。
-    - **严禁**仅解析搜索列表的摘要（Snippet），那对分析没有任何价值。
+### 阶段二：正文抓取（langgraph_fetch_web_content）
+阶段一结束后，**立即**对搜索结果中相关性最高的 URL 逐一调用 `langgraph_fetch_web_content` 抓取完整正文。
+- 这一步是**必须执行的**，不是可选的，不是降级方案。
+- 目标：至少成功抓取 **2 个 URL** 的正文。
 
-## Step 3: 输出规范
-- **只输出原文**：直接返回抓取到的网页正文或 PDF 转换后的 Markdown。
-- **禁止总结**：严禁输出类似“综上所述”、“该地区发展良好”的废话。
-- **元数据保留**：保留抓取来源的 URL，以便后续 Agent 溯源。
+### 阶段三：PDF 兜底（仅当 MCP 抓取失败时）
+若某个 URL 调用 `langgraph_fetch_web_content` 返回 `[FETCH_FAILED]`，则对**该 URL** 执行：
+1. `export_webpage_to_pdf` → 下载为 PDF
+2. `pdf2md` → 解析为 Markdown 正文
 
-## ⚠️ 负面约束 (Negative Constraints)
-- ❌ 禁止搜索 10 年前的陈旧信息（除非用户明确要求历史溯源）。
-- ❌ 禁止使用超过 3 个词的搜索语句。
-- ❌ 禁止在抓取失败后停止工作，必须尝试 PDF 转换路径。"""
+## 输出规范
+- **只输出原文**：直接返回抓取到的网页正文或 PDF 转换后的 Markdown，保留来源 URL。
+- **禁止总结**：严禁输出”综上所述”、”该地区发展良好”等概括性废话。
+- ❌ 禁止把 duckduckgo 的摘要（snippet/body）当作最终内容输出。
+- ❌ 禁止使用超过 3 个词的搜索关键词。
+- ❌ 禁止在抓取失败后直接放弃，必须尝试 PDF 兜底路径。”””
 
 
 async def create_search_subgraph(checkpointer=None):
@@ -56,16 +54,15 @@ async def create_search_subgraph(checkpointer=None):
     创建一个 CompiledGraph 实例。
     - 如果传入 checkpointer，它就拥有独立记忆。
     - 如果不传，它就是一个纯函数工具。
+    每次调用都会重置搜索轮次计数器（最多 3 轮）。
     """
+    round_counter = [0]  # 每次创建子图时重置，隔离不同任务的轮次
     tools = [
-        duckduckgo_search,
+        make_search_tool(round_counter),
         langgraph_fetch_web_content,
         export_webpage_to_pdf,
         pdf2md,
     ]
-    # tools = [duckduckgo_search, export_webpage_to_pdf, pdf2md]
-
-    # 这里的 agent 可以是 LangGraph 的 CompiledGraph
     agent = create_agent(
         model=model, tools=tools, system_prompt=system_prompt, checkpointer=checkpointer
     )

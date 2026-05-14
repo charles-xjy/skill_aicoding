@@ -168,21 +168,23 @@ def langgraph_fetch_web_content(url):
 
     # url1 = "https://baike.baidu.com/item/%E9%BB%91%E7%A5%9E%E8%AF%9D%EF%BC%9A%E6%82%9F%E7%A9%BA/53303078"
     # url2="https://baike.baidu.com/item/%E5%8C%97%E4%BA%AC%E9%82%AE%E7%94%B5%E5%A4%A7%E5%AD%A6?fromtitle=%E5%8C%97%E9%82%AE&fromid=11156402&fromModule=lemma_search-box"
+    MAX_CHARS = 4000
     try:
         result = asyncio.run(fetch_web_content(url))
+        if not result:
+            msg = f"[FETCH_FAILED] {url} 抓取内容为空（页面可能需要 JS 渲染或启用了反爬）。请立即改用 export_webpage_to_pdf 工具对此 URL 进行 PDF 下载，再用 pdf2md 转换。"
+            print(f"⚠️  {msg}")
+            return msg
+        if len(result) > MAX_CHARS:
+            print(f"  ✂️  内容过长（{len(result)} 字），已截断至 {MAX_CHARS} 字")
+            result = result[:MAX_CHARS] + f"\n\n[内容已截断，原始长度 {len(result)} 字符]"
         return result
-    except ImportError:
-        print("❌ 错误: 未安装mcp库")
-        print("\n请先安装:")
-        print("  pip install mcp")
-        print("\n或者使用另一个示例脚本: simple_mcp_example.py")
     except Exception as e:
-        print(f"❌ 错误: {e}")
         import traceback
-        # 它会捕获当前正在处理的异常，并将完整的报错过程打印到标准错误流（通常是你的控制台）。
         traceback.print_exc()
-
-    return "没有获取到内容"
+        msg = f"[FETCH_FAILED] {url} 抓取异常: {e}。请立即改用 export_webpage_to_pdf 工具对此 URL 进行 PDF 下载，再用 pdf2md 转换。"
+        print(f"⚠️  {msg}")
+        return msg
 
 
 if __name__ == "__main__":

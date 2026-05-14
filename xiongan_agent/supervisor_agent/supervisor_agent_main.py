@@ -11,7 +11,6 @@ LangGraph Supervisor Pattern - 规划式重构
 6. ✅ 层级 Thread ID：main_001 → sub_{agent}_of_main_001
 """
 
-import asyncio
 import operator
 import json
 from typing import Annotated, List, Dict, Literal, Optional, TypedDict
@@ -24,7 +23,6 @@ from langchain_core.messages import (
     SystemMessage,
     HumanMessage,
     AIMessage,
-    ToolMessage,
 )
 from langchain_core.runnables import RunnableConfig
 
@@ -134,6 +132,24 @@ def print_task_list(task_plan: List[Dict]):
     print(f"{BOLD}{'━' * 58}{RESET}\n")
 
 
+async def _select_analysis_model() -> str:
+    """questionary 交互选择分析模型，返回 'remote' 或 'local'"""
+    import questionary
+    result = await questionary.select(
+        "请选择 analysis_agent 使用的模型：",
+        choices=[
+            questionary.Choice("Qwen_agent  @ 8001（远端）", value="remote"),
+            questionary.Choice("urban-vlm   @ 8002（本地）", value="local"),
+        ],
+        style=questionary.Style([
+            ("selected", "fg:cyan bold"),
+            ("pointer",  "fg:cyan bold"),
+            ("question", "bold"),
+        ]),
+    ).ask_async()
+    return result if result is not None else "remote"
+
+
 # =============================================================================================
 # 4. Supervisor 节点：规划 + 逐步调度
 # =============================================================================================
@@ -177,16 +193,31 @@ async def supervisor_node(state: Dict) -> Dict:
 
         try:
             content = response.content
-            start_idx = content.find("{")
-            end_idx = content.rfind("}") + 1
-            plan_data = (
-                json.loads(content[start_idx:end_idx])
-                if start_idx >= 0 and end_idx > start_idx
-                else {}
-            )
+
+            # 1. 剥离 <think>...</think> 思考块
+            if "<think>" in content and "</think>" in content:
+                content = content.split("</think>", 1)[-1].strip()
+
+            # 2. 优先从 ```json...``` 代码块提取
+            import re as _re
+            _json_block = _re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, _re.DOTALL)
+            if _json_block:
+                plan_data = json.loads(_json_block.group(1))
+            else:
+                # 3. 回退：找最外层 { ... }
+                start_idx = content.find("{")
+                end_idx = content.rfind("}") + 1
+                plan_data = (
+                    json.loads(content[start_idx:end_idx])
+                    if start_idx >= 0 and end_idx > start_idx
+                    else {}
+                )
         except (json.JSONDecodeError, AttributeError) as e:
             plan_data = {}
-            execution_log.append(f"[{datetime.now().isoformat()}] ❌ 规划解析失败: {e}")
+            log = f"[{datetime.now().isoformat()}] ❌ 规划解析失败: {e}"
+            execution_log.append(log)
+            print(f"\n\033[31m{log}{RESET}")
+            print(f"\033[31m模型原始回复（前500字）:\n{response.content[:500]}{RESET}\n")
 
         raw_tasks = plan_data.get("tasks", [])
         task_plan = [
@@ -201,9 +232,9 @@ async def supervisor_node(state: Dict) -> Dict:
         ]
 
         if not task_plan:
-            execution_log.append(
-                f"[{datetime.now().isoformat()}] ❌ 规划失败，任务列表为空"
-            )
+            log = f"[{datetime.now().isoformat()}] ❌ 规划失败，任务列表为空"
+            execution_log.append(log)
+            print(f"\n\033[31m{log}{RESET}\n")
             return {
                 "messages": [response],
                 "task_plan": [],
@@ -246,7 +277,34 @@ async def supervisor_node(state: Dict) -> Dict:
 
     if current_index < len(task_plan):
         task_plan[current_index]["status"] = "error" if task_failed else "completed"
-        task_plan[current_index]["result"] = last_result[:200] if last_result else ""
+        task_plan[current_index]["result"] = last_result if last_result else ""
+
+    # ── search_agent 质量门控 ──────────────────────────────────────────────
+    if (not task_failed
+            and current_index < len(task_plan)
+            and task_plan[current_index]["agent"] == "search_agent"):
+        # 去掉思考块后计算有效内容长度
+        effective = last_result
+        if "</think>" in effective:
+            effective = effective.split("</think>", 1)[-1]
+        effective = effective.strip()
+        if len(effective) < 400:
+            log = (
+                f"[{datetime.now().isoformat()}] ⚠️  search_agent 有效内容不足"
+                f"（{len(effective)} 字），需要用户提供新关键词"
+            )
+            execution_log.append(log)
+            print(f"\n\033[33m{log}{RESET}")
+            if effective:
+                print(f"\033[33m  当前内容预览: {effective[:200]}\033[0m")
+            task_plan[current_index]["status"] = "in_progress"  # 重置为进行中
+            return {
+                "task_plan": task_plan,
+                "current_task_index": current_index,
+                "next_step": "human_input",
+                "execution_log": execution_log,
+                "retry_count": 0,
+            }
 
     # 第N次打印：当前任务标为 completed / error
     log = (
@@ -325,7 +383,7 @@ async def supervisor_node(state: Dict) -> Dict:
 # =============================================================================================
 # 5. 子图节点包装器
 # =============================================================================================
-async def create_subgraph_node(subgraph_name: str, checkpointer):
+async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs: Dict = {}):
     """工厂函数：为每个子图创建一个节点包装器"""
     subgraph_factories = {
         "image_agent": create_image_subgraph,
@@ -358,16 +416,28 @@ async def create_subgraph_node(subgraph_name: str, checkpointer):
         print(f"\n\033[35m{log_entry}{RESET}")
 
         try:
-            subgraph = await factory(checkpointer=checkpointer)
+            kwargs = dict(factory_kwargs)
+            if subgraph_name == "analysis_agent":
+                kwargs["model_name"] = await _select_analysis_model()
+            subgraph = await factory(checkpointer=checkpointer, **kwargs)
             inputs = {"messages": [HumanMessage(content=task_description)]}
 
+            from langchain_core.messages import ToolMessage as _ToolMessage
             result = None
+            tool_contents: list = []   # 收集 search_agent 的实际抓取内容
             async for chunk in subgraph.astream(
                 inputs, sub_config, stream_mode="updates", version="v2"
             ):
                 for node_name, node_data in chunk.get("data", {}).items():
                     if "messages" in node_data:
                         result = node_data
+                        if subgraph_name == "search_agent":
+                            for msg in node_data["messages"]:
+                                if isinstance(msg, _ToolMessage):
+                                    content = str(msg.content or "")
+                                    # 只保留有实质内容的工具返回（>200字）
+                                    if len(content) > 200:
+                                        tool_contents.append(content[:3000])
 
             if result and "messages" in result:
                 last_msg = result["messages"][-1]
@@ -375,9 +445,22 @@ async def create_subgraph_node(subgraph_name: str, checkpointer):
                     last_msg.content if hasattr(last_msg, "content") else str(last_msg)
                 )
 
+                # search_agent：将工具实际抓取的内容附加进来，而不仅靠模型自述
+                if subgraph_name == "search_agent" and tool_contents:
+                    combined = "\n\n---\n\n".join(tool_contents[:5])
+                    response_content = (
+                        f"{response_content}\n\n"
+                        f"【工具实际获取内容（共 {len(tool_contents)} 条）】\n{combined}"
+                    )
+                    print(f"\033[32m  附加了 {len(tool_contents)} 条工具内容，总计 {len(combined)} 字\033[0m")
+                elif subgraph_name == "search_agent":
+                    print(f"\033[33m  ⚠️  未捕获到任何工具抓取内容\033[0m")
+
                 log_entry = f"[{datetime.now().isoformat()}] ✅ {subgraph_name} 完成 | 结果长度: {len(response_content)}"
                 execution_log.append(log_entry)
                 print(f"\n\033[32m{log_entry}{RESET}")
+                preview = response_content.replace("\n", " ")[:400]
+                print(f"\033[2m  内容摘要: {preview}{'...' if len(response_content) > 400 else ''}\033[0m")
 
                 return {
                     "messages": [
@@ -502,6 +585,7 @@ async def create_supervisor_graph(checkpointer):
     """
     创建并编译 Supervisor 图。
     checkpointer 为 None 时可用于可视化（不需要 Redis）。
+    analysis_agent 的模型在运行时由用户通过方向键交互选择。
     """
     workflow = StateGraph(SupervisorState)
 
@@ -538,113 +622,3 @@ async def create_supervisor_graph(checkpointer):
     workflow.add_edge("analysis_agent", "supervisor")
 
     return workflow.compile(checkpointer=checkpointer)
-
-
-# =============================================================================================
-# 9. 主函数
-# =============================================================================================
-async def main():
-    db_uri = "redis://10.129.107.145:6379"
-    thread_id = "main_001"
-
-    print(
-        "\n\033[32m════════════════════ 创建 Supervisor 图 ════════════════════\033[0m"
-    )
-    async with AsyncRedisSaver.from_conn_string(db_uri) as checkpointer:
-        graph = await create_supervisor_graph(checkpointer)
-
-        initial_state = create_supervisor_state()
-        initial_state["messages"] = [
-            HumanMessage(
-                content="请你根据2020和2025的卫星变化图，介绍北邮沙河校区近几年的发展"
-            )
-        ]
-        config = {"configurable": {"thread_id": thread_id}}
-
-        print("\n\033[32m════════════════════ 开始执行 ════════════════════\033[0m")
-        final_report = ""
-
-        # ── 阶段1：正常运行，直到遇到 interrupt ──────────────────────────────
-        interrupted = False
-        async for chunk in graph.astream(initial_state, config, stream_mode="updates"):
-            if "__interrupt__" in chunk:
-                prompt = chunk["__interrupt__"][0].value
-                print(f"\n\033[33m{'━' * 58}\033[0m")
-                print(f"\033[33m  图执行已暂停（search_agent 3次失败）\033[0m")
-                print(f"\033[33m  {prompt}\033[0m")
-                print(f"\033[33m{'━' * 58}\033[0m")
-                user_keywords = input("\n>>> 请输入关键词: ").strip()
-                if not user_keywords:
-                    user_keywords = "北邮沙河 2025 建设"
-                interrupted = True
-                break
-
-            for node_name, node_data in chunk.items():
-                if "messages" in node_data:
-                    for msg in node_data["messages"]:
-                        if node_name == "analysis_agent" and hasattr(msg, "content"):
-                            final_report = msg.content
-
-        # ── 阶段2：用 Command(resume=...) 恢复执行（如果发生过中断）─────────
-        if interrupted:
-            from langgraph.types import Command
-            print(f"\n\033[36m[恢复] 以关键词「{user_keywords}」继续执行...\033[0m")
-            async for chunk in graph.astream(
-                Command(resume=user_keywords), config, stream_mode="updates"
-            ):
-                for node_name, node_data in chunk.items():
-                    if "messages" in node_data:
-                        for msg in node_data["messages"]:
-                            if node_name == "analysis_agent" and hasattr(msg, "content"):
-                                final_report = msg.content
-
-    print("\n\033[32m════════════════════ 执行完毕 ════════════════════\033[0m")
-
-    # 打印最终分析报告（去掉 <think>...</think> 部分）
-    if final_report:
-        if "<think>" in final_report or "</think>" in final_report:
-            final_report = final_report.split("</think>", 1)[-1].strip()
-
-        print(f"\n\033[1;32m{'═' * 60}\033[0m")
-        print(f"\033[1;32m  最终分析报告\033[0m")
-        print(f"\033[1;32m{'═' * 60}\033[0m")
-        print(final_report)
-        print(f"\033[1;32m{'═' * 60}\033[0m\n")
-
-
-# =============================================================================================
-# 10. 可视化
-# =============================================================================================
-async def visualize_graph():
-    """生成图的可视化并自动打开（无需 Redis）"""
-    import os
-
-    output_path = os.path.abspath("supervisor_graph.png")
-
-    graph = await create_supervisor_graph(checkpointer=None)
-    try:
-        png_data = graph.get_graph(xray=True).draw_mermaid_png()
-        with open(output_path, "wb") as f:
-            f.write(png_data)
-        print(f"✅ 图已保存为 {output_path}")
-        os.startfile(output_path)
-    except Exception as e:
-        print(f"⚠️ 可视化失败: {e}")
-
-
-# =============================================================================================
-# 运行入口
-# =============================================================================================
-if __name__ == "__main__":
-    print(
-        "\n\033[1;32m╔════════════════════════════════════════════════════════════╗\033[0m"
-    )
-    print(
-        "\033[1;32m║   LangGraph Supervisor Pattern - 城市治理分析智能体        ║\033[0m"
-    )
-    print(
-        "\033[1;32m╚════════════════════════════════════════════════════════════╝\033[0m"
-    )
-
-    asyncio.run(main())
-    asyncio.run(visualize_graph())

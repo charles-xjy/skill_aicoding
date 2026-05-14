@@ -9,12 +9,19 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 
-model = init_chat_model(
+_remote_model = init_chat_model(
     base_url="http://10.129.107.145:8001/v1",
     api_key="vllm-no-key",
     model="Qwen_agent",
     model_provider="openai",
 )
+_local_model = init_chat_model(
+    base_url="http://10.129.107.145:8002/v1",
+    api_key="vllm-no-key",
+    model="urban-vlm",
+    model_provider="openai",
+)
+_MODELS = {"remote": _remote_model, "local": _local_model}
 
 system_prompt = """# Role: 城市治理与国土空间规划专家
 
@@ -106,14 +113,14 @@ class AnalysisState(TypedDict):
 
 # 匹配 Windows/Linux 绝对路径中的图片文件
 _IMAGE_PATH_RE = re.compile(
-    r'([A-Za-z]:\\[^\s\n"\']+\.(?:jpg|jpeg|png|bmp|gif|tiff|webp)'
-    r'|/[^\s\n"\']+\.(?:jpg|jpeg|png|bmp|gif|tiff|webp))',
+    r'([A-Za-z]:\\[^\s\n"\'`]+\.(?:jpg|jpeg|png|bmp|gif|tif|tiff|webp)'
+    r'|/[^\s\n"\'`]+\.(?:jpg|jpeg|png|bmp|gif|tif|tiff|webp))',
     re.IGNORECASE,
 )
 _MIME = {
     "jpg": "image/jpeg", "jpeg": "image/jpeg",
     "png": "image/png",  "bmp": "image/bmp",
-    "gif": "image/gif",  "tiff": "image/tiff",
+    "gif": "image/gif",  "tif": "image/tiff", "tiff": "image/tiff",
     "webp": "image/webp",
 }
 
@@ -154,33 +161,65 @@ def _build_multimodal_message(text: str) -> HumanMessage:
     return HumanMessage(content=content_blocks)
 
 
-async def analysis_node(state: AnalysisState) -> dict:
-    # 找到最后一条 HumanMessage，将其改造为多模态消息
-    messages = list(state["messages"])
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], HumanMessage):
-            text = (
-                messages[i].content
-                if isinstance(messages[i].content, str)
-                else " ".join(
-                    b.get("text", "") for b in messages[i].content
-                    if isinstance(b, dict) and b.get("type") == "text"
+def _make_analysis_node(model):
+    async def analysis_node(state: AnalysisState) -> dict:
+        # 找到最后一条 HumanMessage，将其改造为多模态消息
+        messages = list(state["messages"])
+        for i in range(len(messages) - 1, -1, -1):
+            if isinstance(messages[i], HumanMessage):
+                text = (
+                    messages[i].content
+                    if isinstance(messages[i].content, str)
+                    else " ".join(
+                        b.get("text", "") for b in messages[i].content
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    )
                 )
-            )
-            messages[i] = _build_multimodal_message(text)
-            break
+                messages[i] = _build_multimodal_message(text)
+                break
 
-    response = await model.ainvoke([SystemMessage(content=system_prompt)] + messages)
-    return {"messages": [response]}
+        # ── DEBUG: 打印送给模型的消息结构 ──────────────────────────────
+        final_messages = [SystemMessage(content=system_prompt)] + messages
+        print(f"\n\033[35m{'─' * 60}\033[0m")
+        print(f"\033[35m  [DEBUG] analysis_agent 送入模型的消息（共 {len(final_messages)} 条）\033[0m")
+        for idx, msg in enumerate(final_messages):
+            role = type(msg).__name__
+            if isinstance(msg.content, str):
+                preview = msg.content[:200].replace("\n", "↵")
+                print(f"\033[35m  [{idx}] {role}: \"{preview}{'...' if len(msg.content) > 200 else ''}\"\033[0m")
+            elif isinstance(msg.content, list):
+                print(f"\033[35m  [{idx}] {role}: [多模态 {len(msg.content)} 个 block]\033[0m")
+                for j, block in enumerate(msg.content):
+                    btype = block.get("type", "?") if isinstance(block, dict) else "?"
+                    if btype == "text":
+                        txt = block.get("text", "")[:150].replace("\n", "↵")
+                        print(f"\033[35m      block[{j}] text: \"{txt}{'...' if len(block.get('text','')) > 150 else ''}\"\033[0m")
+                    elif btype == "image_url":
+                        url_val = block.get("image_url", {}).get("url", "")
+                        if url_val.startswith("data:"):
+                            print(f"\033[35m      block[{j}] image_url: data:{url_val[5:20]}... (base64, {len(url_val)} chars)\033[0m")
+                        else:
+                            print(f"\033[35m      block[{j}] image_url: {url_val[:80]}\033[0m")
+                    else:
+                        print(f"\033[35m      block[{j}] {btype}\033[0m")
+        print(f"\033[35m{'─' * 60}\033[0m\n")
+        # ── END DEBUG ───────────────────────────────────────────────
+
+        response = await model.ainvoke(final_messages)
+        return {"messages": [response]}
+    return analysis_node
 
 
-async def create_analysis_subgraph(checkpointer=None):
+async def create_analysis_subgraph(checkpointer=None, model_name: str = "remote"):
     """
     创建分析 Agent 子图（纯 LLM 综合分析，无工具调用）。
     - checkpointer=None 时为无状态模式（可视化 / 单次调用）
+    - model_name: "remote"（Qwen_agent @ 8001）或 "local"（urban-vlm @ 8002）
     """
+    model = _MODELS.get(model_name, _remote_model)
+    print(f"  🤖 analysis_agent 使用模型: {model_name}")
     workflow = StateGraph(AnalysisState)
-    workflow.add_node("analyst", analysis_node)
+    workflow.add_node("analyst", _make_analysis_node(model))
     workflow.add_edge(START, "analyst")
     workflow.add_edge("analyst", END)
     return workflow.compile(checkpointer=checkpointer)

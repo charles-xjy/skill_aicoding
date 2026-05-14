@@ -22,7 +22,6 @@ async def get_baidu_tools():
     client = MultiServerMCPClient(mcp_servers)
     try:
         tools = await client.get_tools()
-        print(tools)
     except Exception as e:
         print(f"[!] MCP 连接失败: {e}")
     return tools

@@ -30,6 +30,7 @@ from langchain_core.runnables import RunnableConfig
 
 # LangGraph imports
 from langgraph.graph import StateGraph, START, END
+from langgraph.types import interrupt
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 # Subgraph imports
@@ -66,7 +67,7 @@ class SupervisorState(TypedDict):
     task_plan: List[Dict]
     current_task_index: int
     next_step: Optional[
-        Literal["image_agent", "search_agent", "analysis_agent", "supervisor", "end"]
+        Literal["image_agent", "search_agent", "analysis_agent", "human_input", "supervisor", "end"]
     ]
     execution_log: List[str]
     retry_count: int
@@ -150,7 +151,7 @@ async def supervisor_node(state: Dict) -> Dict:
 你的职责：分析用户请求，制定一个有序的任务执行计划。
 
 可用 Agent 及其能力说明：
-- "image_agent"：获取并保存卫星影像/地图，**只返回图片本地路径，不做分析**
+- "image_agent"：获取并保存卫星影像/地图，**只返回图片本地路径，不做分析**；支持在单次调用中传入多个年份列表，一次性下载多年影像
 - "search_agent"：搜索并抓取网页原始内容，**只返回原始文字资料，不做分析**
 - "analysis_agent"：综合分析专家，接收前序所有结果后**输出最终分析报告**
 
@@ -158,6 +159,7 @@ async def supervisor_node(state: Dict) -> Dict:
 - image_agent 和 search_agent 负责采集，analysis_agent 负责最终分析
 - analysis_agent 必须是最后一个任务
 - 不要期望 image_agent 或 search_agent 输出分析报告
+- **image_agent 可以一次处理多个年份，不要为不同年份分别创建多个 image_agent 任务**；在任务描述中直接列出所有需要的年份即可
 
 输出格式（必须严格遵守，只输出 JSON，不要有其他文字）：
 ```json
@@ -405,6 +407,17 @@ async def create_subgraph_node(subgraph_name: str, checkpointer):
                 print(f"\n\033[33m{log_entry}{RESET}")
                 return {"execution_log": execution_log, "retry_count": retry_count + 1}
 
+            # 3次均失败
+            if subgraph_name == "search_agent":
+                log_entry = f"[{datetime.now().isoformat()}] ⏸️  search_agent 3次重试均失败，等待用户提供关键词"
+                execution_log.append(log_entry)
+                print(f"\n\033[33m{log_entry}{RESET}")
+                return {
+                    "execution_log": execution_log,
+                    "next_step": "human_input",
+                    "retry_count": 0,
+                }
+
             return {
                 "messages": [
                     AIMessage(
@@ -430,29 +443,60 @@ def should_continue(state: Dict) -> str:
         "image_agent": "image_agent",
         "search_agent": "search_agent",
         "analysis_agent": "analysis_agent",
-        "supervisor": "supervisor",
+        "human_input": "human_input",
         "end": END,
     }
     return route_map.get(next_step, END)
 
 
+def search_agent_routing(state: Dict) -> str:
+    """search_agent 完成后：3次失败则转 human_input，否则回 supervisor。"""
+    return "human_input" if state.get("next_step") == "human_input" else "supervisor"
+
+
 # =============================================================================================
-# 6. 条件路由
+# 7. Human-in-the-loop：用户补充搜索关键词
 # =============================================================================================
-def should_continue(state: Dict) -> str:
-    next_step = state.get("next_step", "end")
-    route_map = {
-        "image_agent": "image_agent",
-        "search_agent": "search_agent",
-        "analysis_agent": "analysis_agent",
-        "supervisor": "supervisor",
-        "end": END,
+async def human_input_node(state: Dict) -> Dict:
+    task_plan = list(state.get("task_plan", []))
+    current_index = state.get("current_task_index", 0)
+    execution_log = list(state.get("execution_log", []))
+
+    current_desc = ""
+    if task_plan and current_index < len(task_plan):
+        current_desc = task_plan[current_index]["description"].split("\n")[0][:80]
+
+    # 暂停图执行，等待用户输入
+    user_keywords: str = interrupt(
+        f"search_agent 经过 3 次重试仍然失败。\n"
+        f"当前任务：{current_desc}\n"
+        f"请输入搜索关键词，agent 将强制使用这些关键词进行搜索（多个关键词用逗号分隔）："
+    )
+
+    # 将用户关键词追加到任务描述，供 search_agent 使用
+    if task_plan and current_index < len(task_plan):
+        task_plan[current_index] = dict(task_plan[current_index])
+        task_plan[current_index]["description"] += (
+            f"\n\n【强制搜索指令】前几次搜索已失败。"
+            f"你必须严格使用以下关键词调用搜索工具，不得自行修改或替换：\n{user_keywords}"
+        )
+        task_plan[current_index]["status"] = "in_progress"
+
+    log = f"[{datetime.now().isoformat()}] 🔑 用户提供了新关键词: {str(user_keywords)[:60]}"
+    execution_log.append(log)
+    print(f"\n\033[36m{log}{RESET}")
+    print_task_list(task_plan)
+
+    return {
+        "task_plan": task_plan,
+        "next_step": "search_agent",
+        "execution_log": execution_log,
+        "retry_count": 0,
     }
-    return route_map.get(next_step, END)
 
 
 # =============================================================================================
-# 7. 构建 Supervisor 图
+# 8. 构建 Supervisor 图
 # =============================================================================================
 async def create_supervisor_graph(checkpointer):
     """
@@ -462,6 +506,7 @@ async def create_supervisor_graph(checkpointer):
     workflow = StateGraph(SupervisorState)
 
     workflow.add_node("supervisor", supervisor_node)
+    workflow.add_node("human_input", human_input_node)
 
     image_node = await create_subgraph_node("image_agent", checkpointer)
     search_node = await create_subgraph_node("search_agent", checkpointer)
@@ -478,18 +523,25 @@ async def create_supervisor_graph(checkpointer):
             "image_agent": "image_agent",
             "search_agent": "search_agent",
             "analysis_agent": "analysis_agent",
+            "human_input": "human_input",
             END: END,
         },
     )
     workflow.add_edge("image_agent", "supervisor")
-    workflow.add_edge("search_agent", "supervisor")
+    # search_agent 正常完成 → supervisor；3次失败 → human_input
+    workflow.add_conditional_edges(
+        "search_agent",
+        search_agent_routing,
+        {"supervisor": "supervisor", "human_input": "human_input"},
+    )
+    workflow.add_edge("human_input", "search_agent")  # 用户提供关键词后重新搜索
     workflow.add_edge("analysis_agent", "supervisor")
 
     return workflow.compile(checkpointer=checkpointer)
 
 
 # =============================================================================================
-# 8. 主函数
+# 9. 主函数
 # =============================================================================================
 async def main():
     db_uri = "redis://10.129.107.145:6379"
@@ -511,13 +563,40 @@ async def main():
 
         print("\n\033[32m════════════════════ 开始执行 ════════════════════\033[0m")
         final_report = ""
+
+        # ── 阶段1：正常运行，直到遇到 interrupt ──────────────────────────────
+        interrupted = False
         async for chunk in graph.astream(initial_state, config, stream_mode="updates"):
+            if "__interrupt__" in chunk:
+                prompt = chunk["__interrupt__"][0].value
+                print(f"\n\033[33m{'━' * 58}\033[0m")
+                print(f"\033[33m  图执行已暂停（search_agent 3次失败）\033[0m")
+                print(f"\033[33m  {prompt}\033[0m")
+                print(f"\033[33m{'━' * 58}\033[0m")
+                user_keywords = input("\n>>> 请输入关键词: ").strip()
+                if not user_keywords:
+                    user_keywords = "北邮沙河 2025 建设"
+                interrupted = True
+                break
+
             for node_name, node_data in chunk.items():
                 if "messages" in node_data:
                     for msg in node_data["messages"]:
-                        # 记录 analysis_agent 的最终输出
                         if node_name == "analysis_agent" and hasattr(msg, "content"):
                             final_report = msg.content
+
+        # ── 阶段2：用 Command(resume=...) 恢复执行（如果发生过中断）─────────
+        if interrupted:
+            from langgraph.types import Command
+            print(f"\n\033[36m[恢复] 以关键词「{user_keywords}」继续执行...\033[0m")
+            async for chunk in graph.astream(
+                Command(resume=user_keywords), config, stream_mode="updates"
+            ):
+                for node_name, node_data in chunk.items():
+                    if "messages" in node_data:
+                        for msg in node_data["messages"]:
+                            if node_name == "analysis_agent" and hasattr(msg, "content"):
+                                final_report = msg.content
 
     print("\n\033[32m════════════════════ 执行完毕 ════════════════════\033[0m")
 
@@ -534,7 +613,7 @@ async def main():
 
 
 # =============================================================================================
-# 9. 可视化
+# 10. 可视化
 # =============================================================================================
 async def visualize_graph():
     """生成图的可视化并自动打开（无需 Redis）"""

@@ -1,0 +1,7 @@
+model_provider = "Model_Studio"
+model = "qwen3.6-plus"
+[model_providers.Model_Studio]
+name = "Model_Studio"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+env_key = "sk-6f0498f08d74403dbe30d8edcdd7cb6d"
+wire_api = "responses"

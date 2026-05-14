@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
@@ -6,8 +9,11 @@ from langgraph.checkpoint.memory import InMemorySaver
 # 直接从 tool 包导入
 from tool import duckduckgo_search, langgraph_fetch_web_content, export_webpage_to_pdf, pdf2md
 
+load_dotenv()
+BASE_LLM_URL = os.getenv("BASE_LLM_URL")
+
 model = init_chat_model(
-    base_url="http://localhost:8001/v1",
+    base_url=BASE_LLM_URL,
     api_key="vllm-no-key",
     model="Qwen_agent",
     model_provider="openai",

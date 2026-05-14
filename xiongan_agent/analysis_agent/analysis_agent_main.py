@@ -112,9 +112,12 @@ class AnalysisState(TypedDict):
 
 
 # 匹配 Windows/Linux 绝对路径中的图片文件
+# 优化：
+# 1. Windows: 必须以 A-Z:\ 开头
+# 2. Linux: 必须以 / 开头，且排除 // (协议相对路径)，且至少包含两级目录以排除常见网页相对路径 (如 /search.png)
 _IMAGE_PATH_RE = re.compile(
     r'([A-Za-z]:\\[^\s\n"\'`]+\.(?:jpg|jpeg|png|bmp|gif|tif|tiff|webp)'
-    r'|/[^\s\n"\'`]+\.(?:jpg|jpeg|png|bmp|gif|tif|tiff|webp))',
+    r'|/(?!/)(?:[\w\-. ]+/){2,}[\w\-. ]+\.(?:jpg|jpeg|png|bmp|gif|tif|tiff|webp))',
     re.IGNORECASE,
 )
 _MIME = {

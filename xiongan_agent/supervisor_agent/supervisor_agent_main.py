@@ -134,20 +134,27 @@ def print_task_list(task_plan: List[Dict]):
 
 async def _select_analysis_model() -> str:
     """questionary 交互选择分析模型，返回 'remote' 或 'local'"""
-    import questionary
-    result = await questionary.select(
-        "请选择 analysis_agent 使用的模型：",
-        choices=[
-            questionary.Choice("Qwen_agent  @ 8001（远端）", value="remote"),
-            questionary.Choice("urban-vlm   @ 8002（本地）", value="local"),
-        ],
-        style=questionary.Style([
-            ("selected", "fg:cyan bold"),
-            ("pointer",  "fg:cyan bold"),
-            ("question", "bold"),
-        ]),
-    ).ask_async()
-    return result if result is not None else "remote"
+    import sys
+    if not sys.stdin.isatty():
+        return "remote"
+
+    try:
+        import questionary
+        result = await questionary.select(
+            "请选择 analysis_agent 使用的模型：",
+            choices=[
+                questionary.Choice("Qwen_agent  @ 8001（远端）", value="remote"),
+                questionary.Choice("urban-vlm   @ 8002（本地）", value="local"),
+            ],
+            style=questionary.Style([
+                ("selected", "fg:cyan bold"),
+                ("pointer",  "fg:cyan bold"),
+                ("question", "bold"),
+            ]),
+        ).ask_async()
+        return result if result is not None else "remote"
+    except Exception:
+        return "remote"
 
 
 # =============================================================================================

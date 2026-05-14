@@ -1,9 +1,11 @@
 import asyncio
+import os
+from dotenv import load_dotenv
 
-from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+from langgraph.prebuilt import create_react_agent
 
 from .tool import (
     make_search_tool,
@@ -12,8 +14,11 @@ from .tool import (
     pdf2md,
 )
 
+load_dotenv()
+BASE_LLM_URL = os.getenv("BASE_LLM_URL")
+
 model = init_chat_model(
-    base_url="http://10.129.107.145:8001/v1",
+    base_url=BASE_LLM_URL,
     api_key="vllm-no-key",
     model="Qwen_agent",
     model_provider="openai",
@@ -54,17 +59,20 @@ async def create_search_subgraph(checkpointer=None):
     创建一个 CompiledGraph 实例。
     - 如果传入 checkpointer，它就拥有独立记忆。
     - 如果不传，它就是一个纯函数工具。
-    每次调用都会重置搜索轮次计数器（最多 3 轮）。
     """
-    round_counter = [0]  # 每次创建子图时重置，隔离不同任务的轮次
+    # 🌟 round_counter 仍然作为闭包变量，但我们通过 supervisor 的重试逻辑确保其行为符合预期
+    # 每次重新 compile 图时，这个变量会被重置为 [0]
+    round_counter = [0]
     tools = [
         make_search_tool(round_counter),
         langgraph_fetch_web_content,
         export_webpage_to_pdf,
         pdf2md,
     ]
-    agent = create_agent(
-        model=model, tools=tools, system_prompt=system_prompt, checkpointer=checkpointer
+    
+    # 使用 create_react_agent 简化构建，它内部处理了 StateGraph
+    agent = create_react_agent(
+        model=model, tools=tools, checkpointer=checkpointer, state_modifier=system_prompt
     )
     return agent
 
@@ -74,93 +82,19 @@ async def run_as_standalone():
     """
     当此文件被直接运行时，作为一个独立的智能体启动
     """
-    DB_URI = "redis://localhost:6379"
+    DB_URI = "redis://10.129.107.145:6379"
     async with AsyncRedisSaver.from_conn_string(DB_URI) as saver:
-        # 传入独立的 checkpointer 实现独立记忆
         agent = await create_search_subgraph(checkpointer=saver)
-
         config = {"configurable": {"thread_id": "search_test_001"}}
         inputs = {"messages": [HumanMessage(content="请介绍雄安新区")]}
-
         print("🤖 独立智能体模式启动...")
-        async for chunk in agent.astream(
-            inputs,
-            config,
-            stream_mode="updates",
-            version="v2",
-        ):
-            if chunk["type"] == "updates":
-                for node_name, node_update in chunk["data"].items():
-                    if "messages" in node_update:
-                        for msg in node_update["messages"]:
-                            print(f"\n--- 节点 [{node_name}] 输出 ---")
-                            # pretty_print 会根据消息类型自动格式化输出
-                            msg.pretty_print()
-
-
-# --- 3. 作为子图节点 (Subgraph Node Mode) ---
-async def search_agent_node(state, config):
-    """
-    当被主图调用时，作为主图的一个节点。
-    """
-    # 这里你可以选择是否为子图创建全新的独立 Redis 连接
-    # 或者从 config 中提取主图的连接，但使用不同的 thread_id
-    async with AsyncRedisSaver.from_conn_string("redis://localhost:6379") as sub_saver:
-        agent = await create_search_subgraph(checkpointer=sub_saver)
-
-        # 🌟 实现独立记忆的关键：
-        # 这里使用一个固定的、或与父 thread 相关联但不相等的 sub_thread_id
-        parent_thread = config["configurable"].get("thread_id", "default")
-        sub_config = {"configurable": {"thread_id": f"sub_mem_{parent_thread}"}}
-
-        # 只取主图传给它的最后一条需求
-        inputs = {"messages": [state["messages"][-1]]}
-        result = await agent.ainvoke(inputs, sub_config)
-
-        return {"messages": [result["messages"][-1]]}
+        async for chunk in agent.astream(inputs, config, stream_mode="updates"):
+            for node_name, node_update in chunk.items():
+                if "messages" in node_update:
+                    for msg in node_update["messages"]:
+                        print(f"\n--- 节点 [{node_name}] 输出 ---")
+                        msg.pretty_print()
 
 
 if __name__ == "__main__":
-    # --- 4. 运行判断 ---
-    # 如果直接 python 运行此文件，执行独立模式
     asyncio.run(run_as_standalone())
-    # docker exec redis-stack-server redis-cli keys "checkpoint:standalone_test_001:*" | xargs -I {} docker exec redis-stack-server redis-cli del "{}"
-
-    # 查看记忆内容
-    from langgraph.checkpoint.redis import RedisSaver
-
-    connection_str = "redis://localhost:6379"
-
-    with RedisSaver.from_conn_string(connection_str) as checkpointer:
-        config = {"configurable": {"thread_id": "search_test_001"}}
-        print(f"--- 正在查询 Thread ID: search_agent 的所有 Checkpoints ---")
-
-        # 使用 list() 获取所有快照
-        for state in checkpointer.list(config):
-            checkpoint_id = state.config["configurable"]["checkpoint_id"]
-            print(f"\n[Checkpoint ID]: {checkpoint_id}")
-            print(f"[metadata]: {state.metadata}")
-
-            # 核心修正：处理可能为 dict 格式的消息
-            raw_messages = state.checkpoint.get("channel_values", {}).get(
-                "messages", []
-            )
-
-            for msg in raw_messages:
-                # 兼容处理：如果是字典则取键值，如果是对象则取属性
-                if isinstance(msg, dict):
-                    # LangGraph 存储的 dict 通常包含 'type' 和 'data'
-                    m_type = msg.get("type", "unknown")
-                    # 尝试从嵌套的 data 中获取 content，或者直接获取
-                    data = msg.get("data", {})
-                    content = data.get("content", str(msg))
-                else:
-                    m_type = getattr(msg, "type", "unknown")
-                    content = getattr(msg, "content", "")
-
-                # 截断过长的内容方便阅读
-                display_content = content
-                print(f"  - [{m_type}]: {display_content}")
-
-            print("-" * 50)
-# docker exec redis-stack-server redis-cli keys "checkpoint:search_agent:*" | xargs -I {} docker exec redis-stack-server redis-cli del "{}"

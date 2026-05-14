@@ -184,7 +184,7 @@ async def _show_messages(messages: list, start_label: int = 1):
         print(f"\n{DIM}{'─' * 62}{RESET}")
         print(f"#{i} {color}{BOLD}[{msg_type.upper()}]{RESET}{extra}")
         print(f"{DIM}{'─' * 62}{RESET}")
-        print(content_str[:1200] + ("..." if len(content_str) > 1200 else ""))
+        print(content_str)
     print(f"\n{DIM}{'─' * 62}{RESET}")
     print(f"(共 {len(messages)} 条消息)")
 

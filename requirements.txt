@@ -1,0 +1,29 @@
+# --- 核心框架 (LangChain & LangGraph) ---
+langchain>=0.3.0
+langchain-openai
+langchain-community
+langchain-core
+langgraph>=0.2.0
+
+# --- 状态存储与记忆 (Redis) ---
+redis>=5.0.0
+langgraph-checkpoint-redis
+
+# --- 智能体交互与 UI ---
+questionary>=2.0.0
+python-dotenv
+
+# --- 搜索与联网工具 (Search Tools) ---
+ddgs
+requests
+httpx
+
+# --- 网页抓取与解析 (MCP & Playwright) ---
+mcp>=1.0.0
+langchain-mcp-adapters
+playwright>=1.40.0
+
+# --- PDF 解析 (MinerU API 客户端需求) ---
+# --- 图像处理与卫星影像 (Google Earth Engine) ---
+earthengine-api
+tqdm

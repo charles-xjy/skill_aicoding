@@ -154,18 +154,19 @@ analysis_agent 固定输出以下五个章节：
 
 ## 搜索三阶段流水线
 
-DuckDuckGo 只负责发现 URL，正文抓取始终由 MCP 或 Playwright+MinerU 完成。
+DuckDuckGo 只负责发现 URL，正文抓取始终由 MCP Fetch 或 Playwright+MinerU 完成。
 
 ```
 阶段一：URL 发现
   DuckDuckGo（通用 + 百度百科）
-  → 返回相关网页 URL 列表（摘要 snippet 仅供参考，不作为内容输出）
+    │ 返回空结果
+    └→ 百度搜索 MCP（@baidumap/mcp-server-baidu-map）自动接管
 
-阶段二：正文抓取（对每个 URL 执行，必须成功 ≥2 个）
+阶段二：正文抓取（对阶段一获得的每个 URL 执行，必须成功 ≥2 个）
   MCP Fetch (mcp-server-fetch-typescript)
   → 返回网页 Markdown 正文
 
-阶段三：PDF 兜底（仅当某 URL 的 MCP 返回 [FETCH_FAILED] 时）
+阶段三：PDF 兜底（仅当某 URL 的 MCP Fetch 返回 [FETCH_FAILED] 时）
   Playwright → 下载 PDF
   MinerU    → 解析 PDF → Markdown
 ```

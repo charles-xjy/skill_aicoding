@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from langchain_core.tools import tool
 from langgraph.types import interrupt as lg_interrupt
+from .baidu_search_mcp import baidu_search_fallback
 
 RESET = "\033[0m"
 BOLD  = "\033[1m"
@@ -39,6 +40,31 @@ def _ddgs_text(query: str, max_results: int = 5) -> list:
     except Exception as e:
         print(f"  ⚠️  DDGS 请求失败: {e}")
         return []
+
+
+def _search_with_fallback(query: str, source_name: str, site_filter: str, max_results: int = 5) -> list:
+    """先用 DDGS 搜索；若返回空结果，自动切换到百度 MCP 搜索。"""
+    q = f"{query} {site_filter}".strip() if site_filter else query
+    print(f"  [{source_name}] 搜索中...", end=" ", flush=True)
+
+    results = _ddgs_text(q, max_results=max_results)
+
+    if site_filter:
+        expected_domain = site_filter.replace("site:", "")
+        results = [r for r in results if expected_domain in r.get("href", "")]
+
+    if results:
+        print(f"获得 {len(results)} 条结果")
+        return results
+
+    # DDGS 返回空 → 切换百度 MCP
+    print(f"0 条结果，切换百度搜索...")
+    baidu_results = baidu_search_fallback(query, max_results=max_results)
+    if baidu_results:
+        print(f"  [百度MCP] 获得 {len(baidu_results)} 条结果")
+    else:
+        print(f"  [百度MCP] 亦无结果")
+    return baidu_results
 
 
 def make_search_tool(round_counter: list):
@@ -82,23 +108,16 @@ def make_search_tool(round_counter: list):
         seen_hrefs: set = set()
 
         for source_name, site_filter in _SOURCES:
-            q = f"{query} {site_filter}".strip() if site_filter else query
-            print(f"  [{source_name}] 搜索中...", end=" ", flush=True)
-            results = _ddgs_text(q, max_results=5)
+            results = _search_with_fallback(query, source_name, site_filter, max_results=5)
             added = 0
-            expected_domain = site_filter.replace("site:", "") if site_filter else ""
             for r in results:
                 href = r.get("href", "")
                 if not href or href in seen_hrefs:
-                    continue
-                # 若有域名过滤，丢弃不匹配的结果（DuckDuckGo site: 并不可靠）
-                if expected_domain and expected_domain not in href:
                     continue
                 seen_hrefs.add(href)
                 r["source"] = source_name
                 all_results.append(r)
                 added += 1
-            print(f"获得 {added} 条去重结果")
 
         total = len(all_results)
         round_label = f"{round_counter[0]}/{MAX_ROUNDS}" if round_counter[0] <= MAX_ROUNDS else "强制"

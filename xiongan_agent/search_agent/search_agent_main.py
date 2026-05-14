@@ -19,7 +19,7 @@ model = init_chat_model(
     model_provider="openai",
 )
 
-system_prompt = “””# Role: 深度信息采集专家 (Search & Retrieval Agent)
+system_prompt = """# Role: 深度信息采集专家 (Search & Retrieval Agent)
 
 ## 工作流水线（必须严格按顺序执行）
 
@@ -46,7 +46,7 @@ system_prompt = “””# Role: 深度信息采集专家 (Search & Retrieval Ag
 - **禁止总结**：严禁输出”综上所述”、”该地区发展良好”等概括性废话。
 - ❌ 禁止把 duckduckgo 的摘要（snippet/body）当作最终内容输出。
 - ❌ 禁止使用超过 3 个词的搜索关键词。
-- ❌ 禁止在抓取失败后直接放弃，必须尝试 PDF 兜底路径。”””
+- ❌ 禁止在抓取失败后直接放弃，必须尝试 PDF 兜底路径。"""
 
 
 async def create_search_subgraph(checkpointer=None):

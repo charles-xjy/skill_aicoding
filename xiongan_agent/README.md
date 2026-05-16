@@ -61,6 +61,73 @@ DuckDuckGo · Baidu Search · MCP · Playwright · MinerU
 
 urban-vlm (本地) · Qwen (远程)
 
+## Skills 架构
+
+### 设计思路
+
+Skills 是一种**渐进式披露（Progressive Disclosure）**机制：Supervisor 平时只知道每个技能的简短描述，当用户意图匹配某个技能时，才加载完整的技能提示词。
+
+好处：
+- 普通对话（"你是谁"、"有什么功能"）直接回复，不触发完整分析流水线
+- 技能描述作为意图识别依据，不需要额外的路由节点
+- 新增技能只需添加文件夹，不需要改代码
+
+### 工作流程
+
+```
+用户输入
+   │
+   ▼
+Supervisor 读取 skills/ 目录的 SKILL.md frontmatter
+（每个技能仅加载 name + description，不加载全文）
+   │
+   ▼
+单次 LLM 调用，判断用户意图：
+   ├── 命中某个技能 → 输出 {"skill": "技能名"}
+   │       │
+   │       ▼
+   │   加载该技能 SKILL.md 完整正文作为系统提示
+   │   二次 LLM 调用 → 生成 JSON 任务计划 → 驱动子图执行
+   │
+   └── 普通对话 → 直接输出回复文字，流程结束
+```
+
+### 目录约定
+
+```
+xiongan_agent/skills/
+└── <技能英文标识>/
+    └── SKILL.md       # 必须包含 YAML frontmatter + 正文
+```
+
+**SKILL.md 格式：**
+
+```markdown
+---
+name: 技能英文标识（与目录名一致，用连字符）
+description: 一句话描述，供 LLM 做意图识别用（中文，清晰说明适用场景）
+---
+
+（此处是完整的技能提示词正文，只在技能被命中后才加载）
+```
+
+### 已有技能
+
+| 技能 | 标识 | 适用场景 |
+|---|---|---|
+| 遥感影像城市分析 | `remote-sensing-analysis` | 城市空间演变、土地利用变化、规划建设分析，需要下载卫星影像并生成结构化报告 |
+
+### 新增技能
+
+在 `skills/` 下创建新文件夹并添加 `SKILL.md`，下次启动时自动生效，无需改动任何代码：
+
+```bash
+mkdir xiongan_agent/skills/my-new-skill
+# 编写 SKILL.md，填写 frontmatter 和提示词正文
+```
+
+---
+
 ## 目录结构
 
 ```

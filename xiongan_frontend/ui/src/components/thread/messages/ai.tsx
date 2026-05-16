@@ -30,11 +30,19 @@ const AGENT_LABEL: Record<string, string> = {
   search_agent: "🔍 网络搜索",
 };
 
+/** 从 image_agent 输出文本中提取 .jpg/.png 文件名 */
+function extractImageFiles(text: string): string[] {
+  const matches = text.match(/[\w一-鿿\-（）()]+_\d{4}\.(jpg|jpeg|png)/gi) ?? [];
+  return [...new Set(matches)];
+}
+
 /** 可折叠的 agent 中间输出卡片 */
 function AgentOutputCard({ agentName, content }: { agentName: string; content: string }) {
   const [open, setOpen] = useState(false);
   const label = AGENT_LABEL[agentName] ?? agentName;
   const preview = content.replace(/\n+/g, " ").slice(0, 80);
+  const imageFiles = agentName === "image_agent" ? extractImageFiles(content) : [];
+
   return (
     <div className="rounded-lg border border-border/40 bg-muted/15 text-sm">
       <button
@@ -51,6 +59,33 @@ function AgentOutputCard({ agentName, content }: { agentName: string; content: s
           <span className="ml-1 truncate text-xs text-foreground/35">{preview}</span>
         )}
       </button>
+
+      {/* 卫星图片缩略图网格（始终展示，不需要点击展开） */}
+      {imageFiles.length > 0 && (
+        <div className="border-t border-border/30 px-3 py-2">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+            {imageFiles.map((file) => (
+              <a
+                key={file}
+                href={`/api/local-image?file=${encodeURIComponent(file)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group relative"
+              >
+                <img
+                  src={`/api/local-image?file=${encodeURIComponent(file)}`}
+                  alt={file}
+                  className="aspect-square w-full rounded object-cover transition-opacity group-hover:opacity-80"
+                />
+                <span className="absolute bottom-0 left-0 right-0 truncate rounded-b bg-black/50 px-1 py-0.5 text-center text-[10px] text-white">
+                  {file.match(/_(\d{4})\./)?.[1] ?? file}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {open && (
         <div className="border-t border-border/30 px-3 py-2 text-foreground/70">
           <MarkdownText>{content}</MarkdownText>

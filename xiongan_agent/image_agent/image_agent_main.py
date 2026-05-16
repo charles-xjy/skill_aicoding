@@ -1,17 +1,10 @@
 import asyncio
 
 from langchain.agents import create_agent
-from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 
 from .tool import tool_download_image, get_baidu_tools, get_gaode_tools
 
-model = init_chat_model(
-    base_url="http://10.129.107.145:8001/v1",
-    api_key="vllm-no-key",
-    model="Qwen_agent",
-    model_provider="openai",
-)
 
 system_prompt = """你是一个专业的地理空间情报分析助手。
 你的任务是根据用户的需求，通过调用不同的工具获取地理信息、下载卫星遥感影像并进行对比分析。
@@ -53,9 +46,9 @@ async def create_image_subgraph(checkpointer=None):
     - 如果传入 checkpointer，它就拥有独立记忆。
     - 如果不传，它就是一个纯函数工具。
     """
+    from model_probe import make_vllm_model
+    model = await make_vllm_model()
     tools = await get_all_tools()
-
-    # 这里的 agent 可以是 LangGraph 的 CompiledGraph
     agent = create_agent(
         model=model, tools=tools, system_prompt=system_prompt, checkpointer=checkpointer
     )

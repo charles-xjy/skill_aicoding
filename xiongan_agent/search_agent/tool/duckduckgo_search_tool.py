@@ -1,6 +1,7 @@
 from ddgs import DDGS
 import datetime
 import json
+import threading
 from pathlib import Path
 from langchain_core.tools import tool
 from langgraph.types import interrupt as lg_interrupt
@@ -74,6 +75,7 @@ def make_search_tool(round_counter: list):
     round_counter: 长度为 1 的列表 [已用轮次]，
                    每次 create_search_subgraph() 调用时传入新的 [0] 以重置。
     """
+    _lock = threading.Lock()  # 保护 check+increment 原子性，防止并行工具调用竞态
 
     @tool
     def duckduckgo_search(query: str) -> str:
@@ -87,21 +89,29 @@ def make_search_tool(round_counter: list):
         Returns:
             JSON 字符串，每项包含 title、href、body、source 字段。
         """
-        if round_counter[0] >= MAX_ROUNDS:
+        # 原子化：在 lock 内完成 check + increment，避免并行调用拿到相同轮次编号
+        with _lock:
+            over_limit = round_counter[0] >= MAX_ROUNDS
+            if not over_limit:
+                round_counter[0] += 1
+                current_round = round_counter[0]
+
+        if over_limit:
             # 暂停图执行，等待用户提供关键词
             user_keywords: str = lg_interrupt(
                 f"search_agent 已完成 {MAX_ROUNDS} 轮搜索。\n"
                 f"请输入强制搜索关键词（2-3个词，空格分隔），模型将直接使用这些关键词再搜索一轮："
             )
             query = _trim_query(str(user_keywords).strip())
+            round_label = "强制"
             print(f"\n{BOLD}{'━' * 52}{RESET}")
             print(f"{BOLD}  🔑 强制搜索（用户提供）| 关键词: {query}{RESET}")
             print(f"{BOLD}{'━' * 52}{RESET}")
         else:
-            round_counter[0] += 1
             query = _trim_query(query)
+            round_label = f"{current_round}/{MAX_ROUNDS}"
             print(f"\n{BOLD}{'━' * 52}{RESET}")
-            print(f"{BOLD}  🔍 第 {round_counter[0]}/{MAX_ROUNDS} 轮搜索 | 关键词: {query}{RESET}")
+            print(f"{BOLD}  🔍 第 {round_label} 轮搜索 | 关键词: {query}{RESET}")
             print(f"{BOLD}{'━' * 52}{RESET}")
 
         all_results: list = []
@@ -120,7 +130,6 @@ def make_search_tool(round_counter: list):
                 added += 1
 
         total = len(all_results)
-        round_label = f"{round_counter[0]}/{MAX_ROUNDS}" if round_counter[0] <= MAX_ROUNDS else "强制"
         print(f"\n  第 {round_label} 轮合计 {total} 条结果")
         if total:
             for i, r in enumerate(all_results[:5], 1):

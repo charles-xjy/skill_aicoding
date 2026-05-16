@@ -9,19 +9,8 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 
-_remote_model = init_chat_model(
-    base_url="http://10.129.107.145:8001/v1",
-    api_key="vllm-no-key",
-    model="Qwen_agent",
-    model_provider="openai",
-)
-_local_model = init_chat_model(
-    base_url="http://10.129.107.145:8002/v1",
-    api_key="vllm-no-key",
-    model="urban-vlm",
-    model_provider="openai",
-)
-_MODELS = {"remote": _remote_model, "local": _local_model}
+_LOCAL_BASE_URL = "http://10.129.107.145:8002/v1"
+_LOCAL_MODEL_NAME = "urban-vlm"
 
 system_prompt = """# Role: 城市治理与国土空间规划专家
 
@@ -214,10 +203,21 @@ async def create_analysis_subgraph(checkpointer=None, model_name: str = "remote"
     """
     创建分析 Agent 子图（纯 LLM 综合分析，无工具调用）。
     - checkpointer=None 时为无状态模式（可视化 / 单次调用）
-    - model_name: "remote"（Qwen_agent @ 8001）或 "local"（urban-vlm @ 8002）
+    - model_name: "remote"（探测到的主模型端口）或 "local"（urban-vlm @ 8002）
     """
-    model = _MODELS.get(model_name, _remote_model)
-    print(f"  🤖 analysis_agent 使用模型: {model_name}")
+    if model_name == "local":
+        model = init_chat_model(
+            base_url=_LOCAL_BASE_URL,
+            api_key="vllm-no-key",
+            model=_LOCAL_MODEL_NAME,
+            model_provider="openai",
+        )
+        print(f"  🤖 analysis_agent 使用模型: {_LOCAL_MODEL_NAME} @ {_LOCAL_BASE_URL}")
+    else:
+        from model_probe import make_vllm_model, probe_vllm_model
+        model = await make_vllm_model()
+        base_url, mn = await probe_vllm_model()
+        print(f"  🤖 analysis_agent 使用模型: {mn} @ {base_url}")
     workflow = StateGraph(AnalysisState)
     workflow.add_node("analyst", _make_analysis_node(model))
     workflow.add_edge(START, "analyst")

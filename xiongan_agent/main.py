@@ -113,3 +113,5 @@ if __name__ == "__main__":
             print("未输入问题，已退出。")
             sys.exit(0)
         asyncio.run(run(query))
+
+# 我想要了解北邮沙河校区2020-2025的发展情况

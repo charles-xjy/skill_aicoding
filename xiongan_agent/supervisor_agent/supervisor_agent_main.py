@@ -39,12 +39,15 @@ from analysis_agent import create_analysis_subgraph
 # =============================================================================================
 # 1. 定义模型
 # =============================================================================================
-model = init_chat_model(
-    base_url="http://10.129.107.145:8001/v1",
-    api_key="vllm-no-key",
-    model="Qwen_agent",
-    model_provider="openai",
-)
+_main_model = None
+
+
+async def _get_main_model():
+    global _main_model
+    if _main_model is None:
+        from model_probe import make_vllm_model
+        _main_model = await make_vllm_model()
+    return _main_model
 
 
 # =============================================================================================
@@ -135,11 +138,14 @@ def print_task_list(task_plan: List[Dict]):
 async def _select_analysis_model() -> str:
     """questionary 交互选择分析模型，返回 'remote' 或 'local'"""
     import questionary
+    from model_probe import probe_vllm_model, get_port_from_base_url
+    base_url, model_name = await probe_vllm_model()
+    port = get_port_from_base_url(base_url)
     result = await questionary.select(
         "请选择 analysis_agent 使用的模型：",
         choices=[
-            questionary.Choice("Qwen_agent  @ 8001（远端）", value="remote"),
-            questionary.Choice("urban-vlm   @ 8002（本地）", value="local"),
+            questionary.Choice(f"{model_name}  @ {port}（主模型）", value="remote"),
+            questionary.Choice("urban-vlm   @ 8002（视觉模型）", value="local"),
         ],
         style=questionary.Style([
             ("selected", "fg:cyan bold"),
@@ -189,7 +195,7 @@ async def supervisor_node(state: Dict) -> Dict:
 }
 ```
 """)
-        response = await model.ainvoke([system_prompt] + messages)
+        response = await (await _get_main_model()).ainvoke([system_prompt] + messages)
 
         try:
             content = response.content
@@ -585,8 +591,12 @@ async def create_supervisor_graph(checkpointer):
     """
     创建并编译 Supervisor 图。
     checkpointer 为 None 时可用于可视化（不需要 Redis）。
-    analysis_agent 的模型在运行时由用户通过方向键交互选择。
+    启动时先探测可用端口并让用户选择主模型；analysis_agent 模型在执行时单独选择。
     """
+    # 提前触发端口探测 + 用户选择，结果缓存供后续所有 agent 复用
+    from model_probe import probe_vllm_model
+    await probe_vllm_model()
+
     workflow = StateGraph(SupervisorState)
 
     workflow.add_node("supervisor", supervisor_node)

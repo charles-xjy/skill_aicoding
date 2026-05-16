@@ -1,7 +1,6 @@
 import asyncio
 
 from langchain.agents import create_agent
-from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
@@ -12,12 +11,6 @@ from .tool import (
     pdf2md,
 )
 
-model = init_chat_model(
-    base_url="http://10.129.107.145:8001/v1",
-    api_key="vllm-no-key",
-    model="Qwen_agent",
-    model_provider="openai",
-)
 
 system_prompt = """# Role: 深度信息采集专家 (Search & Retrieval Agent)
 
@@ -56,6 +49,8 @@ async def create_search_subgraph(checkpointer=None):
     - 如果不传，它就是一个纯函数工具。
     每次调用都会重置搜索轮次计数器（最多 3 轮）。
     """
+    from model_probe import make_vllm_model
+    model = await make_vllm_model()
     round_counter = [0]  # 每次创建子图时重置，隔离不同任务的轮次
     tools = [
         make_search_tool(round_counter),

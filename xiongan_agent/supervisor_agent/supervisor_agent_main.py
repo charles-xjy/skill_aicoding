@@ -164,7 +164,7 @@ def print_task_list(task_plan: List[Dict]):
             if "执行结果】\n" in result_text:
                 result_text = result_text.split("执行结果】\n", 1)[1]
             # 去掉 <think>...</think> 思考过程
-            if "<think>" in result_text and "</think>" in result_text:
+            if "</think>" in result_text:
                 result_text = result_text.split("</think>", 1)[-1].strip()
             snippet = result_text[:100]
             suffix = "..." if len(result_text) > 100 else ""
@@ -257,8 +257,8 @@ async def supervisor_node(state: Dict) -> Dict:
         try:
             content = response.content
 
-            # 1. 剥离 <think>...</think> 思考块
-            if "<think>" in content and "</think>" in content:
+            # 1. 剥离思考块（兼容有无开头 <think> 的格式）
+            if "</think>" in content:
                 content = content.split("</think>", 1)[-1].strip()
 
             # 2. 优先从 ```json...``` 代码块提取

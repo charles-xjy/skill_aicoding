@@ -3,7 +3,7 @@ import asyncio
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
 
-from .tool import tool_download_image, get_baidu_tools, get_gaode_tools
+from .tool import tool_download_image, get_baidu_tools, get_gaode_tools, baidu_geocode
 
 
 system_prompt = """你是一个专业的地理空间情报分析助手。
@@ -29,7 +29,7 @@ system_prompt = """你是一个专业的地理空间情报分析助手。
 async def get_all_tools():
     """汇总所有静态工具和动态 MCP 工具，返回一个扁平的列表"""
     # 静态工具（已经是对象了，直接放进列表）
-    static_tools = [tool_download_image]
+    static_tools = [tool_download_image, baidu_geocode]
 
     # 动态工具（因为是异步获取，必须使用 await）
     # 这样拿到的才是真正的 [tool1, tool2...] 列表

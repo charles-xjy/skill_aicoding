@@ -9,18 +9,18 @@ load_dotenv()
 
 
 async def get_baidu_tools():
-    api_key = os.getenv('BAIDU_API_KEY')
+    api_key = os.getenv('BAIDU_MAP_AK')
     if not api_key:
-        print("[!] 警告: 未找到 BAIDU_API_KEY，将跳过百度地图工具。")
+        print("[!] 警告: 未找到 BAIDU_MAP_AK，将跳过百度地图工具。")
         return []
-    
+
     mcp_servers = {
         "amap-maps": {
             "transport": "stdio",
             "command": "npx",
             "args": ["-y", "@baidumap/mcp-server-baidu-map"],
             "env": {
-                "BAIDU_MAP_API_KEY": f"{os.getenv('BAIDU_API_KEY')}"
+                "BAIDU_MAP_API_KEY": api_key
             }
         }
     }

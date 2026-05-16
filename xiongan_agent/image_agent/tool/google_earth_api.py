@@ -5,6 +5,7 @@ import requests
 import os
 
 from langchain_core.tools import tool
+from langchain_core.callbacks.manager import adispatch_custom_event
 from tqdm import tqdm
 
 
@@ -40,7 +41,7 @@ def download_image_with_year(name, lon, lat, year):
     # 替换为大通中心的坐标
     # $$像素尺寸(Dimensions) = \frac{(Buffer * 2)}{每个像素代表的实际距离(Scale)}$$
     # buffer(400) 意味着提取 800x800米 的区域，刚好框住球馆和停车场
-    roi = ee.Geometry.Point([lon, lat]).buffer(1250).bounds()
+    roi = ee.Geometry.Point([lon, lat]).buffer(2500).bounds()
 
     # NAIP 数据不是每年都有（通常一个州每2-3年拍一次）
     # 所以我们把时间范围放宽到该年份往前推2年，确保能拿到图
@@ -77,7 +78,7 @@ def download_image_with_year(name, lon, lat, year):
         url = dataset.visualize(**vis_params).getThumbURL(
             {
                 "region": roi,
-                "dimensions": 256,  # 你要求的 512
+                "dimensions": 512,
                 "format": "jpg"
             }
         )
@@ -97,7 +98,7 @@ def download_image_with_year(name, lon, lat, year):
 
 
 @tool
-def tool_download_image(name: str, years_to_download: list[int], target_lon: float, target_lat: float):
+async def tool_download_image(name: str, years_to_download: list[int], target_lon: float, target_lat: float):
     """
     获取指定地点在多个年份的卫星影像，并返回保存的文件列表。
 
@@ -111,36 +112,34 @@ def tool_download_image(name: str, years_to_download: list[int], target_lon: flo
     """
     print(f"\n🚀 开始下载任务：{name}...")
 
-    downloaded_files = []  # 🌟 用于存储成功的文件信息
+    downloaded_files = []
+    current_script_path = os.path.abspath(__file__)
+    image_agent_dir = os.path.dirname(os.path.dirname(current_script_path))
+    final_folder = os.path.join(image_agent_dir, "Google_earth_image")
 
     with tqdm(total=len(years_to_download), desc="下载进度", unit="img") as pbar:
         for year in years_to_download:
             pbar.set_postfix_str(f"处理 {year}")
 
-            # 调用底层下载逻辑
             result_msg = download_image_with_year(name, target_lon, target_lat, year)
-            current_script_path = os.path.abspath(__file__)
-            # 获取 image_agent 目录的路径 (即 tool 文件夹的上一层)
-            image_agent_dir = os.path.dirname(os.path.dirname(current_script_path))
 
-            # 拼接目标文件夹
-            fianl_folder = os.path.join(image_agent_dir, "Google_earth_image")
-
-            # 如果成功，构造结构化数据
             if "成功" in result_msg:
                 file_name = f"{name}_{year}.jpg"
-
                 downloaded_files.append({
                     "year": year,
                     "file_name": file_name,
-                    "path": os.path.join(fianl_folder, file_name),
+                    "path": os.path.join(final_folder, file_name),
                     "status": "success"
                 })
+                # 每张下完立即推送到前端
+                await adispatch_custom_event(
+                    "satellite_image",
+                    {"file_name": file_name, "year": year}
+                )
 
             tqdm.write(result_msg)
             pbar.update(1)
 
-    # 🌟 返回给 Agent 的关键内容
     return {
         "description": f"成功下载了 {name} 在 {len(downloaded_files)} 个年份的影像。",
         "files": downloaded_files

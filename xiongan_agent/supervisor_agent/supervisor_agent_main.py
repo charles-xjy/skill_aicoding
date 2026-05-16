@@ -206,23 +206,24 @@ async def supervisor_node(state: Dict) -> Dict:
     if not task_plan:
         # ── 1. 读取技能描述列表（只读 frontmatter，不加载正文）────────────────
         skills = _read_skill_descriptions()
-        skill_list_text = "\n".join(
-            f'- {s["name"]}: {s["description"]}' for s in skills
-        ) or "（暂无可用技能）"
 
-        # ── 2. 渐进披露：描述即路由，LLM 自行决定调用哪个 skill 或直接回复 ────
-        system_prompt = SystemMessage(content=f"""你是城市治理分析智能体。
+        # ── 2. 路由判断：关键词触发式 prompt + 限制 max_tokens ────────────────
+        # 每个 skill 的 description 用于触发判断，格式化为简洁触发说明
+        skill_triggers = "\n".join(
+            f'- 输出 {{"skill": "{s["name"]}"}} 当用户请求涉及：{s["description"][:80]}'
+            for s in skills
+        ) or "（暂无技能）"
 
-你拥有以下技能（此处仅为简介，调用时会获取完整说明）：
-{skill_list_text}
+        system_prompt = SystemMessage(content=f"""你是城市治理分析智能体，判断用户意图并立即响应：
 
-根据用户输入做出判断：
-- 若需要某个技能，输出 JSON：{{"skill": "技能名称"}}
-- 若是问候、询问身份/功能、闲聊等普通对话，直接用中文友好回复，介绍自己和可用技能
+{skill_triggers}
+- 其他情况（问候/闲聊/询问功能）：直接用中文简短回复，介绍可用技能
 
-只输出 JSON 或回复文字，不要有其他内容。""")
+只输出 JSON 或回复文字，禁止解释和分析。""")
 
-        response = await (await _get_main_model()).ainvoke([system_prompt] + messages)
+        # max_tokens 限制总生成量（含思考块）；思考模型需要足够预算，否则思考耗尽后无法输出 JSON
+        router_model = (await _get_main_model()).bind(max_tokens=2048)
+        response = await router_model.ainvoke([system_prompt] + messages)
         content = response.content
         if "</think>" in content:
             content = content.split("</think>", 1)[-1].strip()
@@ -256,10 +257,6 @@ async def supervisor_node(state: Dict) -> Dict:
 
         try:
             content = response.content
-
-            # 1. 剥离思考块（兼容有无开头 <think> 的格式）
-            if "</think>" in content:
-                content = content.split("</think>", 1)[-1].strip()
 
             # 2. 优先从 ```json...``` 代码块提取
             _json_block = _re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, _re.DOTALL)

@@ -6,8 +6,12 @@ from pathlib import Path
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from dotenv import load_dotenv
+import nest_asyncio
 
 load_dotenv()
+
+# 模块加载时就 patch，允许在已运行的事件循环（LangGraph 的异步上下文）里嵌套调用
+nest_asyncio.apply()
 
 RESET = "\033[0m"
 BOLD  = "\033[1m"
@@ -69,32 +73,51 @@ async def call_baidu_aisearch(query: str, max_results: int = 10) -> list:
                 # 4. 解析结果
                 if mcp_result.content:
                     for block in mcp_result.content:
-                        if block.type == "text":
-                            # 百度 AIsearch 通常返回一个包含搜索结果列表或总结的文本
-                            # 如果返回的是 JSON 字符串（根据之前 API 经验），尝试解析
-                            text_content = block.text.strip()
-                            if text_content.startswith("{") or text_content.startswith("["):
-                                try:
-                                    data = json.loads(text_content)
-                                    items = data if isinstance(data, list) else data.get("references") or data.get("search_results") or []
-                                    for item in items:
-                                        results.append({
-                                            "title": item.get("title") or "",
-                                            "href": item.get("url") or "",
-                                            "body": (item.get("content") or item.get("snippet") or "")[:800],
-                                            "source": "百度MCP"
-                                        })
-                                except json.JSONDecodeError:
-                                    pass
-                            
-                            # 如果没有解析出列表结果，或者 block.text 本身就是总结，将其作为单一结果
-                            if not results:
-                                results.append({
-                                    "title": f"百度 MCP 搜索结果: {query}",
-                                    "href": "",
-                                    "body": text_content,
-                                    "source": "百度MCP"
-                                })
+                        if block.type != "text":
+                            continue
+                        text_content = block.text.strip()
+
+                        # 优先尝试 JSON 格式
+                        if text_content.startswith("{") or text_content.startswith("["):
+                            try:
+                                data = json.loads(text_content)
+                                items = data if isinstance(data, list) else (
+                                    data.get("references") or data.get("search_results") or []
+                                )
+                                for item in items:
+                                    results.append({
+                                        "title": item.get("title") or "",
+                                        "href": item.get("url") or "",
+                                        "body": (item.get("content") or item.get("snippet") or "")[:800],
+                                        "source": "百度MCP"
+                                    })
+                                if results:
+                                    continue
+                            except json.JSONDecodeError:
+                                pass
+
+                        # 百度 AIsearch 实际返回 "Title: ...\nContent: ...\nURL: ...\n" 块
+                        import re
+                        pattern = re.compile(
+                            r"Title:\s*(?P<title>[^\n]+)\nContent:\s*(?P<body>.*?)\nURL:\s*(?P<href>[^\n]*)",
+                            re.DOTALL
+                        )
+                        for m in pattern.finditer(text_content):
+                            results.append({
+                                "title": m.group("title").strip(),
+                                "href": m.group("href").strip(),
+                                "body": m.group("body").strip()[:800],
+                                "source": "百度MCP"
+                            })
+
+                        # 兜底：整块文本作为单条结果
+                        if not results:
+                            results.append({
+                                "title": f"百度搜索: {query}",
+                                "href": "",
+                                "body": text_content[:800],
+                                "source": "百度MCP"
+                            })
                 return results
     except Exception as e:
         print(f"  [百度MCP] 请求失败: {e}")
@@ -103,21 +126,25 @@ async def call_baidu_aisearch(query: str, max_results: int = 10) -> list:
 def baidu_mcp_search_sync(query: str, max_results: int = 5) -> list:
     """
     同步包装器，方便集成到现有的 LangGraph 工具中。
+    nest_asyncio 已在模块加载时 apply，支持在已运行的事件循环（LangGraph）里嵌套调用。
     """
     print(f"\n{BOLD}{'━' * 52}{RESET}")
     print(f"{BOLD}  🔄 调用百度 AppBuilder MCP | 关键词: {query}{RESET}")
     print(f"{BOLD}{'━' * 52}{RESET}")
 
     try:
-        # 在同步环境中运行异步代码
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # 如果已经在运行（如在某些异步框架中），可能需要特殊处理
-            # 但在一般的 tool 运行环境下，通常可以直接 run
-            import nest_asyncio
-            nest_asyncio.apply()
-        
-        results = asyncio.run(call_baidu_aisearch(query, max_results))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            # 在已运行的事件循环里（LangGraph --allow-blocking 模式）
+            results = loop.run_until_complete(call_baidu_aisearch(query, max_results))
+        else:
+            # 纯同步环境（直接 python 运行脚本）
+            results = asyncio.run(call_baidu_aisearch(query, max_results))
+
         if results:
             print(f"  [百度MCP] 获得 {len(results)} 条结果")
         else:

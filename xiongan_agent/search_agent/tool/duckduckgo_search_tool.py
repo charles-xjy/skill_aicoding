@@ -1,9 +1,12 @@
 from ddgs import DDGS
 import datetime
+import hashlib
 import json
+import re
 import threading
 from pathlib import Path
 from langchain_core.tools import tool
+from langchain_core.callbacks.manager import dispatch_custom_event
 from langgraph.types import interrupt as lg_interrupt
 from .baidu_mcp_search import baidu_mcp_search_sync
 
@@ -13,8 +16,8 @@ DIM   = "\033[2m"
 
 MAX_ROUNDS = 3
 
-# 每轮依次从以下来源搜索
-_SOURCES = [
+# DDG 站点过滤来源（英文/通用查询兜底用）
+_DDG_SOURCES = [
     ("教育官方", "site:edu.cn"),
     ("雄安官网", "site:xiongan.gov.cn"),
     ("权威媒体", "site:news.cn OR site:people.com.cn OR site:chinanews.com OR site:jstv.com"),
@@ -36,10 +39,14 @@ def _trim_query(query: str, max_terms: int = 3) -> str:
     return query
 
 
+def _is_chinese(text: str) -> bool:
+    """判断字符串是否包含中文字符。"""
+    return bool(re.search(r'[一-鿿]', text))
+
+
 def _ddgs_text(query: str, max_results: int = 5) -> list:
     try:
         with DDGS() as ddgs:
-            # 使用 region='cn-zh' 优化中文搜索结果，timelimit='y' 限制在一年内
             return list(ddgs.text(query, region='cn-zh', timelimit='y', max_results=max_results))
     except Exception as e:
         print(f"  ⚠️  DDGS 请求失败: {e}")
@@ -47,12 +54,11 @@ def _ddgs_text(query: str, max_results: int = 5) -> list:
 
 
 def _is_high_quality(result: dict) -> bool:
-    """判断搜索结果是否为高质量（排除常见的门户首页、占位符、境外无关媒体等）。"""
-    title = result.get("title", "").lower()
+    """排除垃圾域名、无意义内容。"""
     href = result.get("href", "").lower()
     body = (result.get("body", "") or result.get("snippet", "")).lower()
+    title = result.get("title", "").lower()
 
-    # 1. 排除境外无关媒体、社交平台、非大陆房地产/生活类网站、以及垃圾站点
     irrelevant_domains = [
         "bbc.com", "nytimes.com", "voachinese.com", "rfa.org",
         "facebook.com", "twitter.com", "instagram.com", "youtube.com",
@@ -63,65 +69,40 @@ def _is_high_quality(result: dict) -> bool:
     for domain in irrelevant_domains:
         if domain in href:
             return False
-
-    # 2. 排除极其简短或无意义的标题/描述
     if "site owner hides" in body or "forbidden" in body or "access restriction" in body:
         return False
-    
     if title in ["google", "youtube", "baidu", "404", "index", "首页", "登录"]:
         return False
-
     return True
 
 
-def _search_with_fallback(query: str, source_name: str, site_filter: str, max_results: int = 5) -> list:
-    """先用 DDGS 搜索；若返回空结果或全是低质量结果，自动切换到百度 MCP 搜索。"""
+def _ddgs_search_with_site(query: str, source_name: str, site_filter: str, max_results: int = 3) -> list:
+    """DDG 站点过滤搜索，不再 fallback 百度（百度由上层统一调用）。"""
     q = f"{query} {site_filter}".strip() if site_filter else query
-    print(f"  [{source_name}] 搜索中...", end=" ", flush=True)
-
-    raw_results = _ddgs_text(q, max_results=max_results)
-    
-    # 过滤结果
-    results = [r for r in raw_results if _is_high_quality(r)]
-
+    print(f"  [{source_name}] DDG 搜索中...", end=" ", flush=True)
+    raw = _ddgs_text(q, max_results=max_results)
+    results = [r for r in raw if _is_high_quality(r)]
     if site_filter:
-        expected_domain = site_filter.replace("site:", "")
-        # 处理可能的 OR 查询
-        expected_domains = [d.strip() for d in expected_domain.split("OR")]
-        results = [r for r in results if any(d in r.get("href", "") for d in expected_domains)]
-
-    if results and len(results) >= 1: # 至少有 1 条高质量结果才认为成功
-        print(f"获得 {len(results)} 条结果")
-        return results
-
-    # DDGS 结果不足或全是垃圾 → 切换百度 MCP
-    if raw_results:
-        print(f"{len(raw_results)} 条结果均为低质量，切换百度搜索...")
-    else:
-        print(f"0 条结果，切换百度搜索...")
-        
-    baidu_results = baidu_mcp_search_sync(query, max_results=max_results)
-    if baidu_results:
-        print(f"  [百度MCP] 获得 {len(baidu_results)} 条结果")
-    else:
-        print(f"  [百度MCP] 亦无结果")
-    return baidu_results
+        domains = [d.strip() for d in site_filter.replace("site:", "").split("OR")]
+        results = [r for r in results if any(d in r.get("href", "") for d in domains)]
+    print(f"获得 {len(results)} 条")
+    return results
 
 
 def make_search_tool(round_counter: list):
     """
-    工厂函数：创建带轮次追踪的多源搜索工具。
+    工厂函数：创建带轮次追踪、MD5 缓存的多源搜索工具。
 
-    round_counter: 长度为 1 的列表 [已用轮次]，
-                   每次 create_search_subgraph() 调用时传入新的 [0] 以重置。
+    round_counter: [已用轮次]，每次 create_search_subgraph() 传入新的 [0] 重置。
     """
-    _lock = threading.Lock()  # 保护 check+increment 原子性，防止并行工具调用竞态
+    _lock = threading.Lock()
+    _cache: dict[str, list] = {}  # MD5(query) → results，避免重复搜索同一关键词
 
     @tool
     def duckduckgo_search(query: str) -> str:
         """
         多源联网搜索工具，每次调用视为一轮，最多 3 轮。
-        每轮自动依次搜索「教育官方 / 雄安官网 / 权威媒体 / 百度百科」四个来源并合并去重。
+        中文查询优先走百度 MCP（精准），不足时补充 DDG 站点过滤。
 
         Args:
             query: 2-3 个精准关键词，例如"北邮 沙河 发展"，严禁传入完整句子。
@@ -129,7 +110,14 @@ def make_search_tool(round_counter: list):
         Returns:
             JSON 字符串，每项包含 title、href、body、source 字段。
         """
-        # 原子化：在 lock 内完成 check + increment，避免并行调用拿到相同轮次编号
+        # ── 缓存命中：相同 query 直接返回，不消耗搜索轮次 ──────────────────────
+        cache_key = hashlib.md5(query.strip().lower().encode("utf-8")).hexdigest()
+        with _lock:
+            if cache_key in _cache:
+                print(f"\n  💾 缓存命中：{query}，跳过网络请求")
+                return json.dumps(_cache[cache_key], ensure_ascii=False)
+
+        # ── 轮次管理 ──────────────────────────────────────────────────────────
         with _lock:
             over_limit = round_counter[0] >= MAX_ROUNDS
             if not over_limit:
@@ -137,12 +125,14 @@ def make_search_tool(round_counter: list):
                 current_round = round_counter[0]
 
         if over_limit:
-            # 暂停图执行，等待用户提供关键词
             user_keywords: str = lg_interrupt(
                 f"search_agent 已完成 {MAX_ROUNDS} 轮搜索。\n"
-                f"请输入强制搜索关键词（2-3个词，空格分隔），模型将直接使用这些关键词再搜索一轮："
+                f"请输入新的搜索关键词（2-3个词），或输入「结束」直接输出现有内容："
             )
-            query = _trim_query(str(user_keywords).strip())
+            user_keywords = str(user_keywords).strip()
+            if user_keywords in ("结束", "done", ""):
+                return json.dumps([], ensure_ascii=False)
+            query = _trim_query(user_keywords)
             round_label = "强制"
             print(f"\n{BOLD}{'━' * 52}{RESET}")
             print(f"{BOLD}  🔑 强制搜索（用户提供）| 关键词: {query}{RESET}")
@@ -157,41 +147,85 @@ def make_search_tool(round_counter: list):
         all_results: list = []
         seen_hrefs: set = set()
 
-        for source_name, site_filter in _SOURCES:
-            results = _search_with_fallback(query, source_name, site_filter, max_results=5)
-            added = 0
-            for r in results:
+        def _add_results(new_results: list, source_tag: str = ""):
+            for r in new_results:
+                if len(all_results) >= 3:
+                    break
                 href = r.get("href", "")
-                if not href or href in seen_hrefs:
+                # 无 URL 的结果（百度摘要型）也收录，但每 source 最多 1 条
+                if href and href in seen_hrefs:
                     continue
-                seen_hrefs.add(href)
-                r["source"] = source_name
+                if href:
+                    seen_hrefs.add(href)
+                if source_tag:
+                    r["source"] = source_tag
                 all_results.append(r)
-                added += 1
 
+        # ── 策略1：中文查询 → 百度 MCP 优先 ────────────────────────────────
+        if _is_chinese(query):
+            print(f"  [百度MCP] 中文查询优先...", end=" ", flush=True)
+            baidu_results = baidu_mcp_search_sync(query, max_results=5)
+            print(f"获得 {len(baidu_results)} 条")
+            _add_results(baidu_results, "百度MCP")
+
+        # ── 策略2：不足 3 条时，DDG 站点过滤补充 ───────────────────────────
+        if len(all_results) < 3:
+            for source_name, site_filter in _DDG_SOURCES:
+                if len(all_results) >= 3:
+                    break
+                results = _ddgs_search_with_site(query, source_name, site_filter, max_results=3)
+                _add_results(results, source_name)
+
+        # ── 打印本轮摘要 ─────────────────────────────────────────────────────
         total = len(all_results)
-        print(f"\n  第 {round_label} 轮合计 {total} 条结果")
-        if total:
-            for i, r in enumerate(all_results[:5], 1):
-                title = r.get('title', '')
-                body = r.get('body', '') or r.get('snippet', '')
-                href = r.get('href', '')
-                print(f"\n  {i}. [{r.get('source','?')}] {title}")
-                print(f"     {DIM}{href}{RESET}")
-                if body:
-                    print(f"     {body[:200]}{'...' if len(body) > 200 else ''}")
+        print(f"\n  第 {round_label} 轮合计 {total} 条结果（上限 3 条）")
+        for i, r in enumerate(all_results, 1):
+            title = r.get('title', '')
+            href = r.get('href', '')
+            body = (r.get('body', '') or r.get('snippet', ''))
+            print(f"\n  {i}. [{r.get('source','?')}] {title}")
+            print(f"     {DIM}{href}{RESET}")
+            if body:
+                print(f"     {body[:200]}{'...' if len(body) > 200 else ''}")
 
-        # 保存到本地 JSON
+        # ── 写入缓存 ─────────────────────────────────────────────────────────
+        with _lock:
+            _cache[cache_key] = all_results
+
+        # ── 保存本地 JSON ─────────────────────────────────────────────────────
         try:
             output_dir = Path(__file__).resolve().parent.parent / "search_result" / "duckduckgo"
             output_dir.mkdir(parents=True, exist_ok=True)
             date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = output_dir / f"{query}_r{round_label.replace('/', '-')}_{date_str}.json"
+            safe_label = round_label.replace('/', '-')
+            output_file = output_dir / f"{query}_r{safe_label}_{date_str}.json"
             with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(all_results, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"  ⚠️  结果保存失败: {e}")
 
-        return json.dumps(all_results, ensure_ascii=False)
+        result = json.dumps(all_results, ensure_ascii=False)
+
+        # ── 推送前端事件 ──────────────────────────────────────────────────────
+        try:
+            dispatch_custom_event("search_round", {
+                "round": current_round if not over_limit else MAX_ROUNDS + 1,
+                "total": MAX_ROUNDS,
+                "query": query,
+                "count": total,
+                "titles": [r.get("title", "")[:50] for r in all_results],
+            })
+        except Exception:
+            pass
+
+        # ── 第3轮后强制触发 interrupt ─────────────────────────────────────────
+        if not over_limit and current_round >= MAX_ROUNDS:
+            result += (
+                "\n\n[SEARCH_EXHAUSTED] 三轮搜索已全部完成。"
+                "你的下一个且唯一的行动是立即调用 duckduckgo_search（查询词填写空字符串即可），"
+                "该工具会自动向用户请求新关键词。禁止在此之前输出任何内容。"
+            )
+
+        return result
 
     return duckduckgo_search

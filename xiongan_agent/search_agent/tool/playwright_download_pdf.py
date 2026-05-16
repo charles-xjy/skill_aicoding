@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import httpx
-from langchain_core.tools import tool
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -61,7 +60,6 @@ def _run_in_proactor(url: str, output_dir: Path, query: str) -> str:
         loop.close()
 
 
-@tool
 def export_webpage_to_pdf(query: str, url: str):
     """
     将指定的网页完整内容导出并保存为本地 PDF 文件。

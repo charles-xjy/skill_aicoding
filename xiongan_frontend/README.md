@@ -49,7 +49,7 @@ ANALYSIS_MODEL=remote     # analysis_agent 模型：remote（主模型）或 loc
 
 ```bash
 cd xiongan_frontend
-langgraph dev
+langgraph dev --allow-blocking
 ```
 
 启动成功后终端会打印：

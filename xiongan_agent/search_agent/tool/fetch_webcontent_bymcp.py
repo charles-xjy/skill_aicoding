@@ -168,7 +168,7 @@ def langgraph_fetch_web_content(url):
 
     # url1 = "https://baike.baidu.com/item/%E9%BB%91%E7%A5%9E%E8%AF%9D%EF%BC%9A%E6%82%9F%E7%A9%BA/53303078"
     # url2="https://baike.baidu.com/item/%E5%8C%97%E4%BA%AC%E9%82%AE%E7%94%B5%E5%A4%A7%E5%AD%A6?fromtitle=%E5%8C%97%E9%82%AE&fromid=11156402&fromModule=lemma_search-box"
-    MAX_CHARS = 4000
+    MAX_CHARS = 1500  # 每个 URL 限 1500 字，确保 3 个 URL 都能喂进上下文
     try:
         result = asyncio.run(fetch_web_content(url))
         if not result:

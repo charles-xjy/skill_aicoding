@@ -318,7 +318,7 @@ async def supervisor_node(state: Dict) -> Dict:
         print_task_list(task_plan)
 
         return {
-            "messages": [response],
+            # 任务规划 JSON 是内部状态，不写入 messages，不展示给用户
             "task_plan": task_plan,
             "current_task_index": 0,
             "next_step": task_plan[0]["agent"],
@@ -524,10 +524,13 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                 preview = response_content.replace("\n", " ")[:400]
                 print(f"\033[2m  内容摘要: {preview}{'...' if len(response_content) > 400 else ''}\033[0m")
 
+                is_final = subgraph_name == "analysis_agent"
                 return {
                     "messages": [
                         AIMessage(
-                            content=f"【{subgraph_name} 执行结果】\n{response_content}",
+                            # analysis_agent 是最终输出，直接用正文；其余标为 internal 前端过滤掉
+                            content=response_content if is_final else f"【{subgraph_name} 执行结果】\n{response_content}",
+                            name="final" if is_final else "internal",
                             metadata={
                                 "source": subgraph_name,
                                 "thread_id": sub_thread_id,

@@ -135,12 +135,25 @@ export function Thread() {
     dragOver,
     handlePaste,
   } = useFileUpload();
-  const [firstTokenReceived, setFirstTokenReceived] = useState(false);
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
 
   const stream = useStreamContext();
-  const messages = stream.messages;
   const isLoading = stream.isLoading;
+
+  // 找到最后一条 human 消息的位置，加载中只渲染到此处，不展示中间 AI 输出
+  const rawMessages = stream.messages;
+  const lastHumanIdx = rawMessages.reduce(
+    (idx, m, i) => (m.type === "human" ? i : idx),
+    -1,
+  );
+  const messages = rawMessages.filter((message, index) => {
+    if (message.id?.startsWith(DO_NOT_RENDER_ID_PREFIX)) return false;
+    // 标记为 internal 的中间结果始终隐藏（image/search agent 输出）
+    if ((message as Record<string, any>).name === "internal") return false;
+    // 加载中：human 之后的 AI 消息先不展示，等结束后统一呈现
+    if (isLoading && message.type !== "human" && index > lastHumanIdx) return false;
+    return true;
+  });
 
   const lastError = useRef<string | undefined>(undefined);
 
@@ -180,25 +193,11 @@ export function Thread() {
     }
   }, [stream.error]);
 
-  // TODO: this should be part of the useStream hook
-  const prevMessageLength = useRef(0);
-  useEffect(() => {
-    if (
-      messages.length !== prevMessageLength.current &&
-      messages?.length &&
-      messages[messages.length - 1].type === "ai"
-    ) {
-      setFirstTokenReceived(true);
-    }
-
-    prevMessageLength.current = messages.length;
-  }, [messages]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading)
       return;
-    setFirstTokenReceived(false);
 
     const newHumanMessage: Message = {
       id: uuidv4(),
@@ -239,9 +238,6 @@ export function Thread() {
   const handleRegenerate = (
     parentCheckpoint: Checkpoint | null | undefined,
   ) => {
-    // Do this so the loading state is correct
-    prevMessageLength.current = prevMessageLength.current - 1;
-    setFirstTokenReceived(false);
     stream.submit(undefined, {
       checkpoint: parentCheckpoint,
       streamMode: ["values"],
@@ -400,7 +396,6 @@ export function Thread() {
               content={
                 <>
                   {messages
-                    .filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX))
                     .map((message, index) =>
                       message.type === "human" ? (
                         <HumanMessage
@@ -427,9 +422,7 @@ export function Thread() {
                       handleRegenerate={handleRegenerate}
                     />
                   )}
-                  {isLoading && !firstTokenReceived && (
-                    <AssistantMessageLoading />
-                  )}
+                  {isLoading && <AssistantMessageLoading />}
                 </>
               }
               footer={

@@ -15,12 +15,49 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
+import { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 /** 去除思考过程，只返回 </think> 之后的正文 */
 function stripThinkContent(text: string): string {
   const closeTag = "</think>";
   const idx = text.indexOf(closeTag);
   if (idx === -1) return text;
   return text.slice(idx + closeTag.length).trimStart();
+}
+
+const AGENT_LABEL: Record<string, string> = {
+  image_agent: "🛰 卫星影像",
+  search_agent: "🔍 网络搜索",
+};
+
+/** 可折叠的 agent 中间输出卡片 */
+function AgentOutputCard({ agentName, content }: { agentName: string; content: string }) {
+  const [open, setOpen] = useState(false);
+  const label = AGENT_LABEL[agentName] ?? agentName;
+  const preview = content.replace(/\n+/g, " ").slice(0, 80);
+  return (
+    <div className="rounded-lg border border-border/40 bg-muted/15 text-sm">
+      <button
+        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
+        )}
+        <span className="font-medium text-foreground/60">{label} 完成</span>
+        {!open && (
+          <span className="ml-1 truncate text-xs text-foreground/35">{preview}</span>
+        )}
+      </button>
+      {open && (
+        <div className="border-t border-border/30 px-3 py-2 text-foreground/70">
+          <MarkdownText>{content}</MarkdownText>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CustomComponent({
@@ -115,9 +152,22 @@ export function AssistantMessage({
   isLoading: boolean;
   handleRegenerate: (parentCheckpoint: Checkpoint | null | undefined) => void;
 }) {
+  const msgName = (message as Record<string, unknown> | undefined)?.name as string | undefined;
   const content = message?.content ?? [];
   const contentString = getContentString(content);
   const mainContent = stripThinkContent(contentString);
+
+  // 中间 agent 输出：折叠卡片
+  if (msgName === "internal") {
+    const prefixMatch = contentString.match(/^【(\w+) 执行结果】\n([\s\S]*)$/);
+    const agentName = prefixMatch?.[1] ?? "agent";
+    const agentContent = stripThinkContent(prefixMatch?.[2] ?? contentString).trim();
+    return (
+      <div className="mr-auto w-full">
+        <AgentOutputCard agentName={agentName} content={agentContent} />
+      </div>
+    );
+  }
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
     parseAsBoolean.withDefault(false),

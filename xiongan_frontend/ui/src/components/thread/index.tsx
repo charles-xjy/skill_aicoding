@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { ReactNode, useEffect, useRef } from "react";
+import { Fragment, ReactNode, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useStreamContext } from "@/providers/Stream";
@@ -16,13 +16,65 @@ import { LangGraphLogoSVG } from "../icons/langgraph";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   ArrowDown,
+  CheckCircle2,
+  Circle,
   LoaderCircle,
   PanelRightOpen,
   PanelRightClose,
   SquarePen,
+  XCircle,
   XIcon,
   Plus,
 } from "lucide-react";
+
+// ── 任务进度组件 ──────────────────────────────────────────────────────────────
+interface TaskItem {
+  id: number;
+  description: string;
+  agent: string;
+  status: "pending" | "in_progress" | "completed" | "error";
+}
+
+function StatusIcon({ status }: { status: string }) {
+  if (status === "in_progress")
+    return <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-amber-500" />;
+  if (status === "completed")
+    return <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />;
+  if (status === "error")
+    return <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
+  return <Circle className="h-4 w-4 shrink-0 text-foreground/25" />;
+}
+
+function TaskPlanView({ tasks }: { tasks: TaskItem[] }) {
+  const done = tasks.filter((t) => t.status === "completed").length;
+  return (
+    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+        任务进度 {done}/{tasks.length}
+      </p>
+      <div className="flex flex-col gap-1.5">
+        {tasks.map((t) => (
+          <div key={t.id} className="flex items-center gap-2">
+            <StatusIcon status={t.status} />
+            <span
+              className={cn(
+                "flex-1 truncate",
+                t.status === "completed"
+                  ? "text-foreground/40"
+                  : "text-foreground/80",
+              )}
+            >
+              {t.id}.&nbsp;{t.description.split("\n")[0].slice(0, 60)}
+            </span>
+            <span className="shrink-0 text-xs text-foreground/30">
+              [{t.agent}]
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
@@ -139,21 +191,12 @@ export function Thread() {
 
   const stream = useStreamContext();
   const isLoading = stream.isLoading;
+  const taskPlan = (stream.values as Record<string, unknown>)
+    ?.task_plan as TaskItem[] | undefined;
 
-  // 找到最后一条 human 消息的位置，加载中只渲染到此处，不展示中间 AI 输出
-  const rawMessages = stream.messages;
-  const lastHumanIdx = rawMessages.reduce(
-    (idx, m, i) => (m.type === "human" ? i : idx),
-    -1,
+  const messages = stream.messages.filter(
+    (m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX),
   );
-  const messages = rawMessages.filter((message, index) => {
-    if (message.id?.startsWith(DO_NOT_RENDER_ID_PREFIX)) return false;
-    // 标记为 internal 的中间结果始终隐藏（image/search agent 输出）
-    if ((message as Record<string, any>).name === "internal") return false;
-    // 加载中：human 之后的 AI 消息先不展示，等结束后统一呈现
-    if (isLoading && message.type !== "human" && index > lastHumanIdx) return false;
-    return true;
-  });
 
   const lastError = useRef<string | undefined>(undefined);
 
@@ -395,23 +438,31 @@ export function Thread() {
               contentClassName="pt-8 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
               content={
                 <>
-                  {messages
-                    .map((message, index) =>
-                      message.type === "human" ? (
-                        <HumanMessage
-                          key={message.id || `${message.type}-${index}`}
-                          message={message}
-                          isLoading={isLoading}
-                        />
-                      ) : (
-                        <AssistantMessage
-                          key={message.id || `${message.type}-${index}`}
-                          message={message}
-                          isLoading={isLoading}
-                          handleRegenerate={handleRegenerate}
-                        />
-                      ),
-                    )}
+                  {messages.map((message, index) => {
+                    // 在最后一条 human 消息后插入任务进度列表
+                    const isLastHuman =
+                      message.type === "human" &&
+                      !messages.slice(index + 1).some((m) => m.type === "human");
+                    return (
+                      <Fragment key={message.id || `${message.type}-${index}`}>
+                        {message.type === "human" ? (
+                          <HumanMessage
+                            message={message}
+                            isLoading={isLoading}
+                          />
+                        ) : (
+                          <AssistantMessage
+                            message={message}
+                            isLoading={isLoading}
+                            handleRegenerate={handleRegenerate}
+                          />
+                        )}
+                        {isLastHuman && !!taskPlan?.length && (
+                          <TaskPlanView tasks={taskPlan} />
+                        )}
+                      </Fragment>
+                    );
+                  })}
                   {/* Special rendering case where there are no AI/tool messages, but there is an interrupt.
                     We need to render it outside of the messages list, since there are no messages to render */}
                   {hasNoAIOrToolMessages && !!stream.interrupt && (

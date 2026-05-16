@@ -41,21 +41,23 @@ def _baidu_baike(query: str) -> list:
     params = {"search_type": "lemmaTitle", "search_key": query}
     url = f"https://appbuilder.baidu.com/v2/baike/lemma/get_content?{urlencode(params)}"
     try:
-        resp = requests.get(url, headers=_HEADERS(), data=b'""', timeout=15)
+        resp = requests.get(url, headers=_HEADERS(), timeout=15)
         resp.encoding = "utf-8"
         data = resp.json()
         _save_result(query, "baike", data)
 
         results = []
-        # AppBuilder 百科返回结构：data.result 或 data.results 列表
-        items = data.get("result") or data.get("results") or []
-        if isinstance(items, dict):
-            items = [items]
-        for item in items:
-            title = item.get("lemmaTitle") or item.get("title") or query
-            href  = item.get("url") or item.get("lemmaUrl") or ""
-            body  = (item.get("lemmaMainContent") or item.get("summary")
-                     or item.get("content") or "")[:500]
+        # 兼容新旧结构
+        res_obj = data.get("result")
+        if res_obj:
+            title = res_obj.get("lemma_title") or query
+            href  = res_obj.get("url") or ""
+            body  = (res_obj.get("abstract_plain") or res_obj.get("summary") or "")[:1000]
+            results.append({"title": title, "href": href, "body": body, "source": "百度百科"})
+        elif data.get("code") == 0 or "lemmaTitle" in data:
+            title = data.get("lemmaTitle") or query
+            href  = data.get("url") or ""
+            body  = (data.get("lemmaMainContent") or data.get("summary") or "")[:800]
             results.append({"title": title, "href": href, "body": body, "source": "百度百科"})
         return results
     except Exception as e:
@@ -64,23 +66,25 @@ def _baidu_baike(query: str) -> list:
 
 
 def _baidu_web_search(query: str) -> list:
-    """百度网页搜索，返回 DDGS 兼容格式列表。"""
-    params = {"search_type": "normal", "search_key": query}
-    url = f"https://appbuilder.baidu.com/v2/search/get_content?{urlencode(params)}"
+    """百度网页搜索 (AppBuilder v2/ai_search/web_search)，返回 DDGS 兼容格式列表。"""
+    url = "https://appbuilder.baidu.com/v2/ai_search/web_search"
+    payload = {
+        "messages": [{"role": "user", "content": query}],
+        "search_source": "baidu_search_v2"
+    }
     try:
-        resp = requests.get(url, headers=_HEADERS(), data=b'""', timeout=15)
+        resp = requests.post(url, headers=_HEADERS(), json=payload, timeout=15)
         resp.encoding = "utf-8"
         data = resp.json()
         _save_result(query, "websearch", data)
 
         results = []
-        items = data.get("result") or data.get("results") or []
-        if isinstance(items, dict):
-            items = [items]
+        # 兼容 references 和 search_results
+        items = data.get("references") or data.get("search_results") or []
         for item in items:
             title = item.get("title") or ""
-            href  = item.get("url") or item.get("link") or ""
-            body  = (item.get("content") or item.get("summary") or item.get("body") or "")[:500]
+            href  = item.get("url") or ""
+            body  = (item.get("content") or item.get("snippet") or "")[:800]
             if title or href:
                 results.append({"title": title, "href": href, "body": body, "source": "百度搜索"})
         return results

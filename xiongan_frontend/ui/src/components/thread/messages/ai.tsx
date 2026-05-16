@@ -15,9 +15,13 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
-/** 去除 <think>...</think> 块，只返回正文 */
+/** 去除思考过程，只返回正文
+ * 兼容两种格式：
+ *   1. <think>...</think> 正文
+ *   2. 思考内容...</think> 正文（无开头 <think>）
+ */
 function stripThinkContent(text: string): string {
-  const match = text.match(/^\s*<think>[\s\S]*?<\/think>\s*([\s\S]*)$/);
+  const match = text.match(/^(?:<think>)?[\s\S]*?<\/think>\s*([\s\S]*)$/);
   return match ? match[1].trim() : text;
 }
 

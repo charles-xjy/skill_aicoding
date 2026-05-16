@@ -15,23 +15,10 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
-import { ThinkingBlock } from "./thinking-block";
-
-/** 从消息文本中解析 <think>...</think> 块，或从 reasoning_content 字段提取 */
-function parseThinkContent(
-  text: string,
-  reasoningContent?: string,
-): { thinking: string | null; main: string } {
-  // vLLM reasoning API: thinking 在独立字段里，content 已是纯正文
-  if (reasoningContent) {
-    return { thinking: reasoningContent.trim() || null, main: text };
-  }
-  // 模型直接在正文输出 <think>...</think>（允许前导空白）
-  const match = text.match(/^\s*<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/);
-  if (match) {
-    return { thinking: match[1].trim() || null, main: match[2].trim() };
-  }
-  return { thinking: null, main: text };
+/** 去除 <think>...</think> 块，只返回正文 */
+function stripThinkContent(text: string): string {
+  const match = text.match(/^\s*<think>[\s\S]*?<\/think>\s*([\s\S]*)$/);
+  return match ? match[1].trim() : text;
 }
 
 function CustomComponent({
@@ -128,14 +115,7 @@ export function AssistantMessage({
 }) {
   const content = message?.content ?? [];
   const contentString = getContentString(content);
-  // 兼容 vLLM reasoning API：thinking 存在 additional_kwargs.reasoning_content
-  const reasoningContent =
-    (message as Record<string, any> | undefined)?.additional_kwargs
-      ?.reasoning_content as string | undefined;
-  const { thinking, main: mainContent } = parseThinkContent(
-    contentString,
-    reasoningContent,
-  );
+  const mainContent = stripThinkContent(contentString);
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
     parseAsBoolean.withDefault(false),
@@ -186,7 +166,6 @@ export function AssistantMessage({
           </>
         ) : (
           <>
-            {thinking && <ThinkingBlock content={thinking} />}
             {mainContent.length > 0 && (
               <div className="py-1">
                 <MarkdownText>{mainContent}</MarkdownText>

@@ -2,3 +2,8 @@
 .gitignore
 /test_baidu_mcp.py
 /test_baidu_search.py
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

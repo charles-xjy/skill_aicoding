@@ -13,8 +13,45 @@ LangGraph Supervisor Pattern - 规划式重构
 
 import operator
 import json
+import re as _re
+from pathlib import Path
 from typing import Annotated, List, Dict, Literal, Optional, TypedDict
 from datetime import datetime
+
+# ── Skill 工具函数 ────────────────────────────────────────────────────────────
+_SKILLS_DIR = Path(__file__).parent.parent / "skills"
+
+
+def _read_skill_descriptions() -> list[dict]:
+    """扫描 skills/ 目录，只读各 SKILL.md 的 frontmatter，不加载正文。"""
+    result = []
+    if not _SKILLS_DIR.exists():
+        return result
+    for folder in _SKILLS_DIR.iterdir():
+        skill_file = folder / "SKILL.md"
+        if not skill_file.exists():
+            continue
+        text = skill_file.read_text(encoding="utf-8")
+        fm_match = _re.match(r"^---\n(.*?)\n---", text, _re.DOTALL)
+        if not fm_match:
+            continue
+        fm = {}
+        for line in fm_match.group(1).splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                fm[k.strip()] = v.strip()
+        result.append({
+            "name": fm.get("name", folder.name),
+            "description": fm.get("description", ""),
+            "path": skill_file,
+        })
+    return result
+
+
+def _load_skill_body(skill_path: Path) -> str:
+    """读取 SKILL.md，去掉 frontmatter 后返回正文。"""
+    text = skill_path.read_text(encoding="utf-8")
+    return _re.sub(r"^---\n.*?\n---\n*", "", text, flags=_re.DOTALL).strip()
 
 # LangChain imports
 from langchain.chat_models import init_chat_model
@@ -167,34 +204,54 @@ async def supervisor_node(state: Dict) -> Dict:
 
     # ── 规划阶段：task_plan 为空，第一次进入 ─────────────────────────────
     if not task_plan:
-        system_prompt = SystemMessage(content="""
-你是一个城市治理分析专家，也是一个任务规划 Supervisor。
+        # ── 1. 读取技能描述列表（只读 frontmatter，不加载正文）────────────────
+        skills = _read_skill_descriptions()
+        skill_list_text = "\n".join(
+            f'- {s["name"]}: {s["description"]}' for s in skills
+        ) or "（暂无可用技能）"
 
-你的职责：分析用户请求，制定一个有序的任务执行计划。
+        # ── 2. 渐进披露：描述即路由，LLM 自行决定调用哪个 skill 或直接回复 ────
+        system_prompt = SystemMessage(content=f"""你是城市治理分析智能体。
 
-可用 Agent 及其能力说明：
-- "image_agent"：获取并保存卫星影像/地图，**只返回图片本地路径，不做分析**；支持在单次调用中传入多个年份列表，一次性下载多年影像
-- "search_agent"：搜索并抓取网页原始内容，**只返回原始文字资料，不做分析**
-- "analysis_agent"：综合分析专家，接收前序所有结果后**输出最终分析报告**
+你拥有以下技能（此处仅为简介，调用时会获取完整说明）：
+{skill_list_text}
 
-规划原则：
-- image_agent 和 search_agent 负责采集，analysis_agent 负责最终分析
-- analysis_agent 必须是最后一个任务
-- 不要期望 image_agent 或 search_agent 输出分析报告
-- **image_agent 可以一次处理多个年份，不要为不同年份分别创建多个 image_agent 任务**；在任务描述中直接列出所有需要的年份即可
+根据用户输入做出判断：
+- 若需要某个技能，输出 JSON：{{"skill": "技能名称"}}
+- 若是问候、询问身份/功能、闲聊等普通对话，直接用中文友好回复，介绍自己和可用技能
 
-输出格式（必须严格遵守，只输出 JSON，不要有其他文字）：
-```json
-{
-  "tasks": [
-    {"id": 1, "description": "具体任务描述", "agent": "image_agent"},
-    {"id": 2, "description": "具体任务描述", "agent": "search_agent"},
-    {"id": 3, "description": "综合分析以上收集的材料，输出完整报告", "agent": "analysis_agent"}
-  ],
-  "reasoning": "简述整体规划思路"
-}
-```
-""")
+只输出 JSON 或回复文字，不要有其他内容。""")
+
+        response = await (await _get_main_model()).ainvoke([system_prompt] + messages)
+        content = response.content
+        if "</think>" in content:
+            content = content.split("</think>", 1)[-1].strip()
+
+        # ── 3a. 检测是否调用了 skill ─────────────────────────────────────────
+        skill_call = _re.search(r'\{[^{}]*"skill"\s*:\s*"([^"]+)"[^{}]*\}', content)
+        matched_skill = None
+        if skill_call:
+            matched_name = skill_call.group(1).strip()
+            matched_skill = next((s for s in skills if s["name"] == matched_name), None)
+
+        if matched_skill is None:
+            # 未调用 skill → LLM 已直接回复，结束
+            log = f"[{datetime.now().isoformat()}] 💬 普通对话，直接回复"
+            execution_log.append(log)
+            print(f"\n\033[36m{log}{RESET}")
+            return {
+                "messages": [AIMessage(content=content)],
+                "next_step": "end",
+                "execution_log": execution_log,
+            }
+
+        # ── 3b. 命中 skill → 加载完整 SKILL.md，进行任务规划 ────────────────
+        skill_body = _load_skill_body(matched_skill["path"])
+        log = f"[{datetime.now().isoformat()}] 📖 加载技能: {matched_skill['name']}"
+        execution_log.append(log)
+        print(f"\n\033[36m{log}{RESET}")
+
+        system_prompt = SystemMessage(content=skill_body)
         response = await (await _get_main_model()).ainvoke([system_prompt] + messages)
 
         try:
@@ -205,7 +262,6 @@ async def supervisor_node(state: Dict) -> Dict:
                 content = content.split("</think>", 1)[-1].strip()
 
             # 2. 优先从 ```json...``` 代码块提取
-            import re as _re
             _json_block = _re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, _re.DOTALL)
             if _json_block:
                 plan_data = json.loads(_json_block.group(1))

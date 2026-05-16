@@ -67,6 +67,7 @@ urban-vlm (本地) · Qwen (远程)
 xiongan_agent/
 ├── main.py                          # 程序入口
 ├── memory_manager.py                # Redis 检查点管理 TUI
+├── model_probe.py                   # vLLM 端口探测器（自动发现可用模型端口）
 │
 ├── supervisor_agent/
 │   └── supervisor_agent_main.py     # Supervisor 图定义 & 路由逻辑
@@ -213,18 +214,21 @@ analysis_agent 固定输出以下五个章节：
 DuckDuckGo / Baidu 只负责发现 URL，正文抓取始终由 MCP Fetch 或 Playwright+MinerU 完成。
 
 ### 阶段一：URL 发现
-- **DuckDuckGo (默认)**：
-    - **优先来源**：`site:edu.cn` (教育)、`site:xiongan.gov.cn` (政府)、`site:news.cn` 等权威媒体、`site:baike.baidu.com` (百科)。
-    - **黑名单过滤**：自动排除 `bbc.com`, `nytimes.com`, `voachinese.com` 等境外媒体，以及社交平台和广告页面。
-    - **质量判定**：自动排除标题为“404”、“首页”、“登录”或描述包含“forbidden”、“access restriction”的无效结果。
-- **百度搜索 MCP (回退)**：当 DDGS 返回空结果或全是低质量链接时，由 `baidu_mcp_search.py` 自动接管，通过百度 AppBuilder MCP 终端获取结果。
+
+-   **DuckDuckGo (默认)**：
+    -   **优先来源**：`site:edu.cn` (教育)、`site:xiongan.gov.cn` (政府)、`site:news.cn` 等权威媒体、`site:baike.baidu.com` (百科)。
+    -   **黑名单过滤**：自动排除 `bbc.com`, `nytimes.com`, `voachinese.com` 等境外媒体，以及社交平台和广告页面。
+    -   **质量判定**：自动排除标题为“404”、“首页”、“登录”或描述包含“forbidden”、“access restriction”的无效结果。
+-   **百度搜索 MCP (回退)**：当 DDGS 返回空结果或全是低质量链接时，由 `baidu_mcp_search.py` 自动接管，通过百度 AppBuilder MCP 终端获取结果。
 
 ### 阶段二：正文抓取
-- **MCP Fetch** (`mcp-server-fetch-typescript`)：对阶段一获得的每个 URL 执行，必须成功获取 ≥2 个 URL 的正文。
-- **内容截断**：所有抓取内容限制在 4000 字以内，以平衡模型上下文和性能。
+
+-   **MCP Fetch** (`mcp-server-fetch-typescript`)：对阶段一获得的每个 URL 执行，必须成功获取 ≥2 个 URL 的正文。
+-   **内容截断**：所有抓取内容限制在 4000 字以内，以平衡模型上下文和性能。
 
 ### 阶段三：PDF 兜底
-- 仅当某 URL 的 MCP Fetch 返回 `[FETCH_FAILED]` 时，启动 Playwright 下载 PDF 并通过 MinerU 解析。
+
+-   仅当某 URL 的 MCP Fetch 返回 `[FETCH_FAILED]` 时，启动 Playwright 下载 PDF 并通过 MinerU 解析。
 
 ## 任务质量门控 (Quality Gating)
 
@@ -237,15 +241,35 @@ DuckDuckGo / Baidu 只负责发现 URL，正文抓取始终由 MCP Fetch 或 Pla
 ## 关键技术配置
 
 ### MCP 服务器 (Model Context Protocol)
-- **百度搜索**：`https://appbuilder.baidu.com/v2/ai_search/mcp/sse` (SSE 终端)
-- **高德地图**：`@amap/amap-maps-mcp-server` (npx 运行，用于坐标转换)
-- **百度地图**：`@baidumap/mcp-server-baidu-map` (npx 运行，用于地理编码)
-- **网页抓取**：`mcp-server-fetch-typescript` (npx 运行)
+
+-   **百度搜索**：`https://appbuilder.baidu.com/v2/ai_search/mcp/sse` (SSE 终端)
+-   **高德地图**：`@amap/amap-maps-mcp-server` (npx 运行，用于坐标转换)
+-   **百度地图**：`@baidumap/mcp-server-baidu-map` (npx 运行，用于地理编码)
+-   **网页抓取**：`mcp-server-fetch-typescript` (npx 运行)
+
+### model_probe.py — vLLM 端口探测器
+
+服务器上同时跑着多个 vLLM 进程（主模型 @ 8001、视觉模型 @ 8002 等），端口不固定，所以所有 agent 统一通过 `model_probe.py` 获取模型连接，而不是在各处硬编码端口。
+
+**工作流程：**
+
+1. **探测**：依次向 `10.129.107.145` 的 8001、8002、8003 端口发 HTTP 请求，收集有响应的端口及其模型名称
+2. **选择**：
+   - 只有一个端口可用 → 自动选定，不打扰用户
+   - 多个端口可用 → 弹出 `questionary` 交互菜单，让用户手动选定主模型
+3. **缓存**：结果存入模块级变量 `_cached`，整个进程只探测一次，后续调用直接返回缓存
+
+**使用方式：**
+
+```python
+from model_probe import make_vllm_model
+model = await make_vllm_model()  # 自动探测并返回已初始化的 LangChain 模型实例
+```
 
 ### 模型选择
-- **多模态分析**：支持在启动时通过交互式菜单选择使用远端 `Qwen_agent` (8001) 或本地 `urban-vlm` (8002)。
-- **任务规划**：固定使用 `Qwen_agent` 处理 Supervisor 的逻辑推理与拆解。
 
+-   **主模型（规划 / 搜索 / 图像）**：启动时通过 `model_probe.py` 探测端口后确定，若多个可用则交互选择。
+-   **多模态分析（analysis_agent）**：每次 analysis 任务开始前单独选择，可选远端 `Qwen_agent` (8001) 或本地 `urban-vlm` (8002)。
 
 所有内容截断至 4000 字以保护模型上下文窗口。
 

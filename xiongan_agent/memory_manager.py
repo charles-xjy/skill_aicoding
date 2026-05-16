@@ -81,7 +81,16 @@ async def _select(prompt: str, options: list) -> str:
 
 
 async def _confirm(text: str) -> bool:
-    return await questionary.confirm(text, default=False, style=_Q_STYLE).ask_async()
+    result = await _select(text, [("否", "n"), ("是", "y")])
+    return result == "y"
+
+
+async def _select_number(prompt: str, min_val: int, max_val: int) -> int | None:
+    """方向键选数字，返回 None 表示取消"""
+    choices = [(str(i), str(i)) for i in range(min_val, max_val + 1)]
+    choices.append(("取消", "q"))
+    result = await _select(prompt, choices)
+    return None if result == "q" else int(result)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -234,35 +243,21 @@ async def view_memory(checkpointer: AsyncRedisSaver, thread_id: str):
             await _show_messages(messages)
 
         elif choice == "2":
-            try:
-                n = int(input(f"显示最后几条 (1-{total}): ").strip())
-                if 1 <= n <= total:
-                    await _show_messages(messages[-n:], start_label=total - n + 1)
-                else:
-                    print(f"请输入 1~{total} 之间的数字。")
-            except ValueError:
-                print("请输入有效数字。")
+            n = await _select_number(f"显示最后几条：", 1, total)
+            if n is not None:
+                await _show_messages(messages[-n:], start_label=total - n + 1)
 
         elif choice == "3":
-            try:
-                n = int(input(f"显示前几条 (1-{total}): ").strip())
-                if 1 <= n <= total:
-                    await _show_messages(messages[:n])
-                else:
-                    print(f"请输入 1~{total} 之间的数字。")
-            except ValueError:
-                print("请输入有效数字。")
+            n = await _select_number(f"显示前几条：", 1, total)
+            if n is not None:
+                await _show_messages(messages[:n])
 
         elif choice == "4":
-            try:
-                x = int(input(f"起始 (1-{total}): ").strip())
-                y = int(input(f"结束 ({x}-{total}): ").strip())
-                if 1 <= x <= y <= total:
+            x = await _select_number(f"起始条数：", 1, total)
+            if x is not None:
+                y = await _select_number(f"结束条数：", x, total)
+                if y is not None:
                     await _show_messages(messages[x - 1 : y], start_label=x)
-                else:
-                    print(f"请确保 1 ≤ 起始 ≤ 结束 ≤ {total}。")
-            except ValueError:
-                print("请输入有效数字。")
 
         elif choice == "5":
             cp_choices = []
@@ -360,29 +355,22 @@ async def delete_checkpoints(checkpointer: AsyncRedisSaver, thread_id: str) -> b
             if max_keep < 1:
                 print("检查点数量不足，无需操作。")
                 continue
-            try:
-                raw_n = input(f"保留最近几个 (1-{max_keep}，q 取消): ").strip()
-                if raw_n.lower() == "q":
-                    continue
-                n = int(raw_n)
-                if not 1 <= n <= max_keep:
-                    print(f"请输入 1~{max_keep} 之间的数字。")
-                    continue
-                targets = checkpoints[n:]
-                cp_ids = [
-                    cp.config.get("configurable", {}).get("checkpoint_id", "")
-                    for cp in targets
-                ]
-                if await _confirm(
-                    f"将删除 {len(targets)} 个旧检查点，保留最近 {n} 个，确认？"
-                ):
-                    deleted = await _delete_by_cp_ids(cp_ids)
-                    print(
-                        f"[OK] 已删除 {len(targets)} 个检查点（清理 {deleted} 个 Redis 键）。"
-                    )
-                    checkpoints = await _collect_checkpoints(checkpointer, thread_id)
-            except ValueError:
-                print("请输入有效数字。")
+            n = await _select_number("保留最近几个检查点：", 1, max_keep)
+            if n is None:
+                continue
+            targets = checkpoints[n:]
+            cp_ids = [
+                cp.config.get("configurable", {}).get("checkpoint_id", "")
+                for cp in targets
+            ]
+            if await _confirm(
+                f"将删除 {len(targets)} 个旧检查点，保留最近 {n} 个，确认？"
+            ):
+                deleted = await _delete_by_cp_ids(cp_ids)
+                print(
+                    f"[OK] 已删除 {len(targets)} 个检查点（清理 {deleted} 个 Redis 键）。"
+                )
+                checkpoints = await _collect_checkpoints(checkpointer, thread_id)
 
         elif choice == "3":
             if await _confirm(f"确认删除 '{thread_id}' 的全部检查点？"):

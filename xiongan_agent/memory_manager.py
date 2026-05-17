@@ -29,7 +29,8 @@ from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 DB_URI = "redis://10.129.107.145:6379"
 
-_MAIN_RE = re.compile(r"^main_\d{8}_\d{6}$")
+_MAIN_RE       = re.compile(r"^main_\d{8}_\d{6}$")
+_STANDALONE_RE = re.compile(r"^main_search_\d{8}_\d{6}$")
 
 _SUB_AGENTS = [
     ("",               "主 Supervisor"),
@@ -37,6 +38,16 @@ _SUB_AGENTS = [
     ("search_agent",   "搜索 Agent"),
     ("analysis_agent", "分析 Agent"),
 ]
+
+# 独立运行的 Agent 会话：前缀匹配，key = thread_id 前缀, value = 显示名称
+_STANDALONE_PREFIXES: dict[str, str] = {
+    "main_search_": "搜索 Agent（独立模式）",
+}
+
+
+def make_sub_thread_id(agent_name: str, parent_thread_id: str) -> str:
+    """生成标准化子 Agent thread ID，与记忆管理器扫描格式一致。"""
+    return f"sub_{agent_name}_of_{parent_thread_id}"
 
 RESET  = "\033[0m"
 BOLD   = "\033[1m"
@@ -107,10 +118,11 @@ async def _scan_sessions(r) -> list:
         parts = kstr.split(":")
         if len(parts) > 1 and parts[1].startswith("main_"):
             session_ids.add(parts[1])
-    # 时间戳格式（新）排前面，其余（如 main_001）附后
-    new_fmt = sorted([s for s in session_ids if _MAIN_RE.match(s)], reverse=True)
-    old_fmt = sorted([s for s in session_ids if not _MAIN_RE.match(s)])
-    return new_fmt + old_fmt
+    # 时间戳格式（新）排前面，独立搜索次之，其余（如 main_001）附后
+    new_fmt        = sorted([s for s in session_ids if _MAIN_RE.match(s)], reverse=True)
+    standalone_fmt = sorted([s for s in session_ids if _STANDALONE_RE.match(s)], reverse=True)
+    old_fmt        = sorted([s for s in session_ids if not _MAIN_RE.match(s) and not _STANDALONE_RE.match(s)])
+    return new_fmt + standalone_fmt + old_fmt
 
 
 async def _collect_checkpoints(checkpointer: AsyncRedisSaver, thread_id: str) -> list:
@@ -412,9 +424,17 @@ async def main():
             while True:
                 _clear()
                 agent_choices = []
-                for suffix, label in _SUB_AGENTS:
-                    tid = f"sub_{suffix}_of_{base_sid}" if suffix else base_sid
-                    agent_choices.append((f"{label}  ({tid})", tid))
+                standalone_label = next(
+                    (lbl for prefix, lbl in _STANDALONE_PREFIXES.items() if base_sid.startswith(prefix)),
+                    None,
+                )
+                if standalone_label is not None:
+                    # 独立会话：thread_id 本身就是数据位置，直接列出
+                    agent_choices.append((f"{standalone_label}  ({base_sid})", base_sid))
+                else:
+                    for suffix, label in _SUB_AGENTS:
+                        tid = f"sub_{suffix}_of_{base_sid}" if suffix else base_sid
+                        agent_choices.append((f"{label}  ({tid})", tid))
                 agent_choices.append(("← 返回会话列表", "back"))
                 agent_choices.append(("退出", "quit"))
 

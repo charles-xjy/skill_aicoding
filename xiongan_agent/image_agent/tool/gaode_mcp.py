@@ -26,10 +26,10 @@ async def get_gaode_tools():
     }
     client = MultiServerMCPClient(mcp_servers)
     try:
-        tools = await client.get_tools()
+        return await client.get_tools()
     except Exception as e:
         print(f"[!] MCP 连接失败: {e}")
-    return tools
+        return []
 
 
 if __name__ == "__main__":

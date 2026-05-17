@@ -38,39 +38,12 @@ async def run(query: str):
         print("\n\033[32m════════════════════ 开始执行 ════════════════════\033[0m")
         final_report = ""
 
-        # ── 阶段1：正常运行，直到遇到 interrupt ──────────────────────────────
-        interrupted = False
         async for chunk in graph.astream(initial_state, config, stream_mode="updates"):
-            if "__interrupt__" in chunk:
-                prompt = chunk["__interrupt__"][0].value
-                print(f"\n\033[33m{'━' * 58}{RESET}")
-                print(f"\033[33m  图执行已暂停（search_agent 3次失败）{RESET}")
-                print(f"\033[33m  {prompt}{RESET}")
-                print(f"\033[33m{'━' * 58}{RESET}")
-                user_keywords = input("\n>>> 请输入关键词: ").strip()
-                if not user_keywords:
-                    user_keywords = "北邮沙河 2025 建设"
-                interrupted = True
-                break
-
             for node_name, node_data in chunk.items():
                 if "messages" in node_data:
                     for msg in node_data["messages"]:
                         if node_name == "analysis_agent" and hasattr(msg, "content"):
                             final_report = msg.content
-
-        # ── 阶段2：用 Command(resume=...) 恢复执行（如果发生过中断）──────────
-        if interrupted:
-            from langgraph.types import Command
-            print(f"\n\033[36m[恢复] 以关键词「{user_keywords}」继续执行...{RESET}")
-            async for chunk in graph.astream(
-                Command(resume=user_keywords), config, stream_mode="updates"
-            ):
-                for node_name, node_data in chunk.items():
-                    if "messages" in node_data:
-                        for msg in node_data["messages"]:
-                            if node_name == "analysis_agent" and hasattr(msg, "content"):
-                                final_report = msg.content
 
     print("\n\033[32m════════════════════ 执行完毕 ════════════════════\033[0m")
 
@@ -114,4 +87,4 @@ if __name__ == "__main__":
             sys.exit(0)
         asyncio.run(run(query))
 
-# 我想要了解北邮沙河校区2020-2025的发展情况
+# 我想要了解北邮沙河校区2020、2025的发展情况

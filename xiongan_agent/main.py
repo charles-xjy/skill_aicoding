@@ -42,6 +42,8 @@ async def run(query: str):
             for node_name, node_data in chunk.items():
                 if "messages" in node_data:
                     for msg in node_data["messages"]:
+                        print(f"\n\033[36m--- [{node_name}] ---\033[0m")
+                        msg.pretty_print()
                         if node_name == "analysis_agent" and hasattr(msg, "content"):
                             final_report = msg.content
 
@@ -86,5 +88,7 @@ if __name__ == "__main__":
             print("未输入问题，已退出。")
             sys.exit(0)
         asyncio.run(run(query))
+    import os as _os
+    _os._exit(0)
 
 # 我想要了解北邮沙河校区2020、2025的发展情况

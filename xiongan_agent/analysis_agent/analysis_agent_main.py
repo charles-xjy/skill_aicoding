@@ -89,7 +89,8 @@ system_prompt = """# Role: 城市治理与国土空间规划专家
 4. **远期战略预判**：基于当前趋势，对2030年该区域的空间形态和功能定位作出专业预判，说明最可能实现的发展路径及其前提条件。
 
 ## Constraints (Writing Style)
-- **证据优先**：每个论断后用括号标注信息来源，如（来源：影像文件名）、（来源：XX网站原文）。
+- **引用格式**：每个论断末尾嵌入 `[n]`（精确到每句，不允许段落末尾统一标注）；`n` 直接使用输入材料中已给出的编号，不要重新编号。卫星影像来源标注为（影像）。
+- **统一来源列表**：报告最后输出”## 来源”列表，将所有搜索报告的来源原样汇总（编号连续，不重复），格式为 `[n] 标题 - URL`。
 - **数据具体**：凡涉及规模、面积、距离、时间，必须给出具体数字，禁止使用”大幅”、”显著”等模糊表述。
 - **拒绝留白**：若原始材料信息不足，须基于专业知识作合理推演，并在句末注明（推演）以示区分。
 - **文风严肃**：政府白皮书或顶级智库报告风格，禁止口语化表达。
@@ -102,7 +103,7 @@ class AnalysisState(TypedDict):
 
 # 匹配 Windows/Linux 绝对路径中的图片文件
 # 优化：
-# 1. Windows: 必须以 A-Z:\ 开头
+# 1. Windows: 必须以 A-Z: 开头
 # 2. Linux: 必须以 / 开头，且排除 // (协议相对路径)，且至少包含两级目录以排除常见网页相对路径 (如 /search.png)
 _IMAGE_PATH_RE = re.compile(
     r'([A-Za-z]:\\[^\s\n"\'`]+\.(?:jpg|jpeg|png|bmp|gif|tif|tiff|webp)'
@@ -111,8 +112,8 @@ _IMAGE_PATH_RE = re.compile(
 )
 _MIME = {
     "jpg": "image/jpeg", "jpeg": "image/jpeg",
-    "png": "image/png",  "bmp": "image/bmp",
-    "gif": "image/gif",  "tif": "image/tiff", "tiff": "image/tiff",
+    "png": "image/png", "bmp": "image/bmp",
+    "gif": "image/gif", "tif": "image/tiff", "tiff": "image/tiff",
     "webp": "image/webp",
 }
 
@@ -185,11 +186,13 @@ def _make_analysis_node(model):
                     btype = block.get("type", "?") if isinstance(block, dict) else "?"
                     if btype == "text":
                         txt = block.get("text", "")[:150].replace("\n", "↵")
-                        print(f"\033[35m      block[{j}] text: \"{txt}{'...' if len(block.get('text','')) > 150 else ''}\"\033[0m")
+                        print(
+                            f"\033[35m      block[{j}] text: \"{txt}{'...' if len(block.get('text', '')) > 150 else ''}\"\033[0m")
                     elif btype == "image_url":
                         url_val = block.get("image_url", {}).get("url", "")
                         if url_val.startswith("data:"):
-                            print(f"\033[35m      block[{j}] image_url: data:{url_val[5:20]}... (base64, {len(url_val)} chars)\033[0m")
+                            print(
+                                f"\033[35m      block[{j}] image_url: data:{url_val[5:20]}... (base64, {len(url_val)} chars)\033[0m")
                         else:
                             print(f"\033[35m      block[{j}] image_url: {url_val[:80]}\033[0m")
                     else:
@@ -199,6 +202,7 @@ def _make_analysis_node(model):
 
         response = await model.ainvoke(final_messages)
         return {"messages": [response]}
+
     return analysis_node
 
 
@@ -219,7 +223,7 @@ async def create_analysis_subgraph(checkpointer=None, model_name: str = "remote"
     else:
         from model_probe import make_vllm_model, probe_vllm_model
         model = await make_vllm_model()
-        base_url, mn = await probe_vllm_model()
+        base_url, mn, _ = await probe_vllm_model()
         print(f"  🤖 analysis_agent 使用模型: {mn} @ {base_url}")
     workflow = StateGraph(AnalysisState)
     workflow.add_node("analyst", _make_analysis_node(model))
@@ -235,7 +239,8 @@ async def run_as_standalone():
         agent = await create_analysis_subgraph(checkpointer=saver)
         config = {"configurable": {"thread_id": "analysis_test_001"}}
         inputs = {
-            "messages": [HumanMessage(content="请根据以下材料分析北邮沙河校区的发展变化。\n【图像路径】\n/data/images/bupt_2020.jpg\n/data/images/bupt_2025.jpg\n\n【搜索内容】\n北邮沙河校区于2023年完成二期工程...")]
+            "messages": [HumanMessage(
+                content="请根据以下材料分析北邮沙河校区的发展变化。\n【图像路径】\n/data/images/bupt_2020.jpg\n/data/images/bupt_2025.jpg\n\n【搜索内容】\n北邮沙河校区于2023年完成二期工程...")]
         }
         print("🤖 analysis_agent 独立模式启动...")
         async for chunk in agent.astream(inputs, config, stream_mode="updates"):

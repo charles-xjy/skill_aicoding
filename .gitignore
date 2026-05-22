@@ -17,3 +17,7 @@ node_modules/
 
 # LangGraph runtime
 .langgraph_api/
+
+# Output
+output/
+

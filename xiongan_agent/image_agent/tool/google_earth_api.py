@@ -120,18 +120,33 @@ async def tool_download_image(name: str, years_to_download: list[int], target_lo
     with tqdm(total=len(years_to_download), desc="下载进度", unit="img") as pbar:
         for year in years_to_download:
             pbar.set_postfix_str(f"处理 {year}")
+            file_name = f"{name}_{year}.jpg"
+            save_path = os.path.join(final_folder, file_name)
+
+            if os.path.exists(save_path):
+                tqdm.write(f"跳过: {file_name} 已存在，无需重复下载")
+                downloaded_files.append({
+                    "year": year,
+                    "file_name": file_name,
+                    "path": save_path,
+                    "status": "success"
+                })
+                await adispatch_custom_event(
+                    "satellite_image",
+                    {"file_name": file_name, "year": year}
+                )
+                pbar.update(1)
+                continue
 
             result_msg = download_image_with_year(name, target_lon, target_lat, year)
 
             if "成功" in result_msg:
-                file_name = f"{name}_{year}.jpg"
                 downloaded_files.append({
                     "year": year,
                     "file_name": file_name,
-                    "path": os.path.join(final_folder, file_name),
+                    "path": save_path,
                     "status": "success"
                 })
-                # 每张下完立即推送到前端
                 await adispatch_custom_event(
                     "satellite_image",
                     {"file_name": file_name, "year": year}

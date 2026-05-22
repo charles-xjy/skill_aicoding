@@ -7,7 +7,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from .pdf_tools import fetch_via_pdf
 
 
 def _strip_thinking(text: str) -> str:
@@ -108,36 +107,44 @@ def make_fetch_tool(model):
     return langgraph_fetch_web_content
 
 
+def _check_url_accessible(url: str, timeout: float = 5.0) -> bool:
+    """
+    发送 HEAD 请求预检 URL 是否可访问（4xx/5xx 视为不可访问）。
+    网络异常或超时返回 True（交给 MCP 再试一次）。
+    """
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, method="HEAD")
+        req.add_header("User-Agent", "Mozilla/5.0")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            if status >= 400:
+                print(f"  [预检] HTTP {status}，跳过: {url}")
+                return False
+            return True
+    except Exception:
+        return True  # 无法判断时交给 MCP 尝试
+
+
 def fetch_and_summarize_sync(url: str, model, query: str = "") -> tuple[str, str] | None:
     """
     抓取 URL 并用 LLM 生成摘要。
-    优先 MCP 抓取；若内容为空，自动降级 Playwright+MinerU PDF 方案。
-    返回 (url, summary)，全部失败时返回 None。
+    先做 HTTP 预检，4xx 直接放弃；MCP 拿不到内容同样放弃，不走 PDF 路径。
+    返回 (url, summary)，失败时返回 None。
     """
-    content = ""
+    # ── HTTP 预检：4xx 直接放弃 ────────────────────────────────────────────────
+    if not _check_url_accessible(url):
+        return None
 
-    # ── 第一路：MCP fetch ──────────────────────────────────────────────────────
+    # ── MCP fetch ─────────────────────────────────────────────────────────────
+    content = ""
     try:
         content = asyncio.run(_fetch_raw(url))
     except Exception as e:
         print(f"  [MCP] 抓取异常: {e}")
 
-    # ── 第二路：PDF 兜底 ───────────────────────────────────────────────────────
     if not content:
-        if content == "":
-            print(f"  [MCP] 内容为空（JS 渲染或反爬），正在进入 Playwright + MinerU 兜底环节...")
-        if query:
-            pdf_result = fetch_via_pdf(query, url)
-            if pdf_result.startswith("[PDF_FAILED]"):
-                print(f"  ❌ [PDF] 环节失败: {pdf_result}")
-                return None
-            content = pdf_result
-            print(f"  ✅ PDF 方案成功，长度 {len(content)} 字，生成摘要...")
-        else:
-            print(f"  ⚠️  [PDF] 无法进入：缺少搜索关键词 (query)")
-            return None
-
-    if not content:
+        print(f"  [MCP] 内容为空，放弃该链接: {url}")
         return None
 
     print(f"  ✅ 抓取成功，长度 {len(content)} 字，生成摘要...")

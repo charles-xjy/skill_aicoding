@@ -1,17 +1,26 @@
 """
 动态探测 vLLM 服务端口，收集所有可用端口后让用户选择（仅一个可用时自动选定）。
+若所有本地端口均不可用，自动回落到硅基流动 API。
 选择结果在进程生命周期内缓存，多次调用只选一次。
 """
+import os
 from urllib.parse import urlparse
 
 import httpx
 import questionary
+from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
+
+load_dotenv()
 
 BASE_IP = "10.129.107.145"
 CANDIDATE_PORTS = [8001, 8002, 8003]
 
-_cached: tuple | None = None  # (base_url, model_name)
+SILICONFLOW_MODEL = "Qwen/Qwen3.6-35B-A3B"
+SILICONFLOW_BASE_URL = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
+SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")
+
+_cached: tuple | None = None  # (base_url, model_name, api_key)
 
 
 async def probe_vllm_model(ports: list | None = None) -> tuple:
@@ -19,6 +28,7 @@ async def probe_vllm_model(ports: list | None = None) -> tuple:
     探测所有 candidate ports，收集可用列表后：
     - 仅一个可用：自动选定，无需交互
     - 多个可用：通过 questionary 让用户选择
+    - 全不可用：回落到硅基流动
     结果缓存，后续调用直接返回。
     """
     global _cached
@@ -48,13 +58,17 @@ async def probe_vllm_model(ports: list | None = None) -> tuple:
                 print(f"\033[33m[端口探测] ⚠️  port {port} 无响应\033[0m")
 
     if not available:
-        raise RuntimeError(
-            f"所有候选端口 {probe_ports} 均无响应，请确认 vLLM 服务已启动"
-        )
+        if not SILICONFLOW_API_KEY:
+            raise RuntimeError(
+                f"所有候选端口 {probe_ports} 均无响应，且未配置 SILICONFLOW_API_KEY"
+            )
+        _cached = (SILICONFLOW_BASE_URL, SILICONFLOW_MODEL, SILICONFLOW_API_KEY)
+        print(f"\033[33m[端口探测] 本地 vLLM 不可用，回落到硅基流动  模型: {SILICONFLOW_MODEL}\033[0m")
+        return _cached
 
     if len(available) == 1:
-        _cached = available[0]
-        base_url, model_name = _cached
+        base_url, model_name = available[0]
+        _cached = (base_url, model_name, "vllm-no-key")
         print(f"\033[36m[端口探测] 仅一个可用，自动选定 {base_url}  模型: {model_name}\033[0m")
         return _cached
 
@@ -79,18 +93,18 @@ async def probe_vllm_model(ports: list | None = None) -> tuple:
     if selected is None:
         selected = available[0]  # Ctrl+C fallback
 
-    _cached = selected
-    base_url, model_name = _cached
+    base_url, model_name = selected
+    _cached = (base_url, model_name, "vllm-no-key")
     print(f"\033[36m[端口探测] 已选定 {base_url}  模型: {model_name}\033[0m")
     return _cached
 
 
 async def make_vllm_model(**kwargs):
-    """从用户选定（或自动选定）的端口创建 init_chat_model 实例。"""
-    base_url, model_name = await probe_vllm_model()
+    """从探测或回落结果创建 init_chat_model 实例。"""
+    base_url, model_name, api_key = await probe_vllm_model()
     return init_chat_model(
         base_url=base_url,
-        api_key="vllm-no-key",
+        api_key=api_key,
         model=model_name,
         model_provider="openai",
         **kwargs,

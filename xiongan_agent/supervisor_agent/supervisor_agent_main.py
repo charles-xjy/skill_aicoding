@@ -18,6 +18,22 @@ from pathlib import Path
 from typing import Annotated, List, Dict, Literal, Optional, TypedDict
 from datetime import datetime
 
+
+def _renumber_search_report(text: str, offset: int) -> tuple[str, int]:
+    """
+    将 search_agent 报告中所有 [n] 引注和来源列表按 offset 连续偏移。
+    返回 (重编号后的文本, 本报告包含的最大引用编号)。
+    offset=0 时原样返回，只统计数量。
+    """
+    nums = [int(m) for m in _re.findall(r'\[(\d+)\]', text)]
+    if not nums:
+        return text, 0
+    max_num = max(nums)
+    if offset == 0:
+        return text, max_num
+    result = _re.sub(r'\[(\d+)\]', lambda m: f'[{int(m.group(1)) + offset}]', text)
+    return result, max_num
+
 # ── Skill 工具函数 ────────────────────────────────────────────────────────────
 _SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
@@ -175,7 +191,7 @@ async def _select_analysis_model() -> str:
     """questionary 交互选择分析模型，返回 'remote' 或 'local'"""
     import questionary
     from model_probe import probe_vllm_model, get_port_from_base_url
-    base_url, model_name = await probe_vllm_model()
+    base_url, model_name, _ = await probe_vllm_model()
     port = get_port_from_base_url(base_url)
     result = await questionary.select(
         "请选择 analysis_agent 使用的模型：",
@@ -282,6 +298,7 @@ async def supervisor_node(state: Dict) -> Dict:
             {
                 "id": t.get("id", i + 1),
                 "description": t.get("description", ""),
+                "query": t.get("query", ""),  # search_agent 专用：实际搜索关键词
                 "agent": t.get("agent", "search_agent"),
                 "status": "pending",
                 "result": None,
@@ -379,20 +396,47 @@ async def supervisor_node(state: Dict) -> Dict:
             "execution_log": execution_log,
         }
 
-    # analysis_agent 是最终汇总任务：收集所有前序任务的结果
+    # analysis_agent 是最终汇总任务：收集所有前序任务的结果，search_agent 引号连续编号
     if task_plan[next_index]["agent"] == "analysis_agent":
-        label_map = {
-            "image_agent": "卫星影像路径",
-            "search_agent": "搜索分析报告（含参考文献）",
-        }
-        context_parts = [
-            f"【任务{t['id']} - {label_map.get(t['agent'], t['agent'])}】\n{t['result']}"
-            for t in task_plan[:next_index]
-            if t.get("result") and t["status"] == "completed"
-        ]
+        context_parts = []
+        ref_offset = 0  # 累计已使用的引用编号数
+        for t in task_plan[:next_index]:
+            if not t.get("result") or t["status"] != "completed":
+                continue
+            if t["agent"] == "image_agent":
+                label = "卫星影像路径"
+                context_parts.append(f"【任务{t['id']} - {label}】\n{t['result']}")
+            elif t["agent"] == "search_agent":
+                q = t.get("query", "").strip()
+                label = f"搜索报告（主题：{q}）" if q else "搜索报告"
+                renumbered, count = _renumber_search_report(t["result"], ref_offset)
+                ref_offset += count
+                context_parts.append(f"【任务{t['id']} - {label}】\n{renumbered}")
+            else:
+                label = t["agent"]
+                context_parts.append(f"【任务{t['id']} - {label}】\n{t['result']}")
         if context_parts:
             task_plan[next_index]["description"] += "\n\n" + "\n\n".join(context_parts)
-            log = f"[{datetime.now().isoformat()}] 📎 已将 {len(context_parts)} 个前序任务结果汇总给 analysis_agent"
+
+            # 从所有 search_agent 报告中提取来源行，拼成完整来源块追加到描述末尾
+            # 这样即使模型忽略 system_prompt 指令，输入里也明确给出了来源列表
+            all_source_lines: list[str] = []
+            for part in context_parts:
+                if "## 来源" in part:
+                    src_section = part.split("## 来源", 1)[1].strip()
+                    for line in src_section.splitlines():
+                        stripped = line.strip()
+                        if stripped and _re.match(r'\[\d+\]', stripped):
+                            all_source_lines.append(stripped)
+            if all_source_lines:
+                sources_block = "\n".join(all_source_lines)
+                task_plan[next_index]["description"] += (
+                    "\n\n---\n"
+                    "**【必须执行】报告最后必须完整附上以下来源列表，一条都不能省略：**\n"
+                    "## 来源\n" + sources_block
+                )
+
+            log = f"[{datetime.now().isoformat()}] 📎 已将 {len(context_parts)} 个前序任务结果汇总给 analysis_agent（引用编号已连续化，共 {ref_offset} 条来源，{len(all_source_lines)} 行来源列表已追加）"
             execution_log.append(log)
             print(f"\n\033[33m{log}{RESET}")
     # image_agent → 非 analysis_agent 的下一任务：只透传图片路径
@@ -445,17 +489,21 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
         execution_log = list(state.get("execution_log", []))
         retry_count = state.get("retry_count", 0)
 
-        # 从 task_plan 读取当前任务描述
+        # 从 task_plan 读取当前任务描述 / query
         task_plan = state.get("task_plan", [])
         current_index = state.get("current_task_index", 0)
-        task_description = (
-            task_plan[current_index]["description"]
-            if task_plan and current_index < len(task_plan)
-            else "无任务"
-        )
+        current_task = task_plan[current_index] if task_plan and current_index < len(task_plan) else {}
+        task_description = current_task.get("description", "无任务")
+
+        # search_agent 只接收 query；其余 agent 接收完整 description（含汇总上下文）
+        if subgraph_name == "search_agent":
+            query = current_task.get("query", "").strip()
+            agent_input = query if query else task_description
+        else:
+            agent_input = task_description
 
         parent_thread_id = config.get("configurable", {}).get("thread_id", "default")
-        sub_thread_id = f"sub_{subgraph_name}_of_{parent_thread_id}"
+        sub_thread_id = f"sub_{subgraph_name}_task{current_index}_of_{parent_thread_id}"
         sub_config = {"configurable": {"thread_id": sub_thread_id}}
 
         log_entry = (
@@ -469,10 +517,9 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
             if subgraph_name == "analysis_agent":
                 kwargs["model_name"] = await _select_analysis_model()
             subgraph = await factory(checkpointer=checkpointer, **kwargs)
-            inputs = {"messages": [HumanMessage(content=task_description)]}
+            inputs = {"messages": [HumanMessage(content=agent_input)]}
             if subgraph_name == "search_agent":
-                inputs["ddgs_rounds"] = 0
-                inputs["baidu_rounds"] = 0
+                inputs["rounds"] = 0
 
             result = None
             async for chunk in subgraph.astream(
@@ -487,6 +534,19 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                 response_content = (
                     last_msg.content if hasattr(last_msg, "content") else str(last_msg)
                 )
+                # 处理列表型 content（部分多模态 / 思考模型）
+                if isinstance(response_content, list):
+                    response_content = "\n".join(
+                        b.get("text", "") for b in response_content
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    )
+                # 剥离 <think>...</think> 思考块
+                if "</think>" in response_content:
+                    response_content = response_content.split("</think>", 1)[-1].strip()
+                # content 为空时尝试 reasoning_content
+                if not response_content:
+                    ak = getattr(last_msg, "additional_kwargs", {}) or {}
+                    response_content = ak.get("reasoning_content", "")
 
                 log_entry = f"[{datetime.now().isoformat()}] ✅ {subgraph_name} 完成 | 结果长度: {len(response_content)}"
                 execution_log.append(log_entry)

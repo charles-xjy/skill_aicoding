@@ -4,6 +4,7 @@
 选择结果在进程生命周期内缓存，多次调用只选一次。
 """
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
@@ -11,7 +12,7 @@ import questionary
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 BASE_IP = "10.129.107.145"
 CANDIDATE_PORTS = [8001, 8002, 8003]

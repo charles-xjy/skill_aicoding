@@ -63,20 +63,25 @@ async def _probe_and_cache() -> None:
                 pass
 
     if not available:
-        raise RuntimeError(
-            f"[xiongan_frontend] 所有候选端口 {_mp.CANDIDATE_PORTS} 均无响应，"
-            "请确认 vLLM 服务已启动"
-        )
+        api_key = _mp.SILICONFLOW_API_KEY
+        if not api_key:
+            raise RuntimeError(
+                f"[xiongan_frontend] 所有候选端口 {_mp.CANDIDATE_PORTS} 均无响应，"
+                "且未配置 SILICONFLOW_API_KEY，请确认 vLLM 服务已启动或配置硅基流动"
+            )
+        _mp._cached = (_mp.SILICONFLOW_BASE_URL, _mp.SILICONFLOW_MODEL, api_key)
+        print(f"[xiongan_frontend] 本地 vLLM 不可用，回落到硅基流动  模型: {_mp.SILICONFLOW_MODEL}")
+        return
 
-    selected = available[0]
+    base_url, model_name = available[0]
     if preferred_port:
-        for base_url, model_name in available:
-            if str(urlparse(base_url).port) == preferred_port:
-                selected = (base_url, model_name)
+        for bu, mn in available:
+            if str(urlparse(bu).port) == preferred_port:
+                base_url, model_name = bu, mn
                 break
 
-    _mp._cached = selected
-    print(f"[xiongan_frontend] vLLM 选定: {selected[0]}  模型: {selected[1]}")
+    _mp._cached = (base_url, model_name, "vllm-no-key")
+    print(f"[xiongan_frontend] vLLM 选定: {base_url}  模型: {model_name}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

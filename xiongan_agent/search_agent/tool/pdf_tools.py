@@ -24,7 +24,7 @@ MINERU_REMOTE_URL = os.environ.get("MINERU_API_URL", "http://10.129.107.145:3000
 MINERU_REMOTE_HOST = os.environ.get("MINERU_HOST", "10.129.107.145")
 GPU_FREE_THRESHOLD_MB = 30 * 1024  # 30 GB in MB
 MAX_CHARS = 40000
-_MD_OUT = Path(__file__).resolve().parent.parent / "search_result" / "pdf2md"
+_MD_OUT = Path(__file__).parent.parent / "search_result" / "pdf2md"
 
 
 def _sanitize(name: str) -> str:
@@ -186,7 +186,7 @@ def fetch_via_pdf(query: str, url: str) -> str:
     失败时返回以 [PDF_FAILED] 开头的错误描述。
     """
     output_dir = (
-            Path(__file__).resolve().parent.parent
+            Path(__file__).parent.parent
             / "search_result" / "download_pdf"
             / _sanitize(query)
     )

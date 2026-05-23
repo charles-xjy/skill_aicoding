@@ -28,7 +28,7 @@ def download_image_with_year(name, lon, lat, year):
     # ee.Initialize(project='your-project-id')
 
     # --- 2. 设置路径 ---
-    base_dir = Path(__file__).resolve().parent.parent
+    base_dir = Path(__file__).parent.parent
     target_folder = os.path.join(base_dir, "Google_earth_image")
 
     if not os.path.exists(target_folder):

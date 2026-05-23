@@ -21,14 +21,14 @@ from langchain_core.callbacks.manager import dispatch_custom_event
 from langchain_core.tools import tool
 from .fetch_web_content import fetch_and_summarize_sync
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
 nest_asyncio.apply()
 
 RESET = "\033[0m"
 BOLD  = "\033[1m"
 DIM   = "\033[2m"
 
-_SAVE_DIR = Path(__file__).resolve().parent.parent / "search_result" / "baidu"
+_SAVE_DIR = Path(__file__).parent.parent / "search_result" / "baidu"
 
 
 def _save_result(query: str, source: str, data) -> None:

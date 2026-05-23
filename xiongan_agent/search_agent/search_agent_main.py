@@ -95,7 +95,7 @@ async def create_search_subgraph(checkpointer=None):
     baidu_tool = make_baidu_search_tool(base_model)
 
     # ── 节点：调用模型 ────────────────────────────────────────────────────────
-    def call_model(state: SearchAgentState):
+    async def call_model(state: SearchAgentState):
         if state["rounds"] < MAX_ROUNDS:
             bound = base_model.bind_tools([baidu_tool], parallel_tool_calls=False)
             print(f"  \033[2m⏳ 正在分析查询，规划搜索策略...\033[0m", flush=True)
@@ -103,7 +103,7 @@ async def create_search_subgraph(checkpointer=None):
             bound = base_model
             print(f"  \033[2m⏳ 搜索轮次已满，正在生成最终报告...\033[0m", flush=True)
 
-        response = bound.invoke(
+        response = await bound.ainvoke(
             [SystemMessage(content=system_prompt)] + state["messages"]
         )
         return {"messages": [response]}
@@ -119,19 +119,37 @@ async def create_search_subgraph(checkpointer=None):
         return {}
 
     # ── 节点：总结 ────────────────────────────────────────────────────────────
-    def summarize(state: SearchAgentState):
+    async def summarize(state: SearchAgentState):
         print(f"  \033[2m⏳ 搜索完成，正在撰写最终报告...\033[0m", flush=True)
-        response = base_model.invoke(
-            [SystemMessage(content=summarize_prompt)] + state["messages"]
+        # 在末尾追加明确指令，防止思考模型把所有 token 消耗在 <think> 上而不输出正文
+        direct_msg = HumanMessage(
+            content="请直接输出最终报告正文，不要输出推理过程，从 ## 搜索发现 开始写。"
         )
-        content = response.content if isinstance(response.content, str) else ""
-        # 剥离思考块，取 </think> 之后的正文
-        if "</think>" in content:
-            content = content.split("</think>", 1)[-1].strip()
-        # content 仍为空时，尝试从 additional_kwargs 取 reasoning_content
+        response = await base_model.ainvoke(
+            [SystemMessage(content=summarize_prompt)] + state["messages"] + [direct_msg]
+        )
+        raw = response.content if isinstance(response.content, str) else ""
+
+        # 取 </think> 之后的正文
+        if "</think>" in raw:
+            content = raw.split("</think>", 1)[-1].strip()
+        else:
+            content = raw.strip()
+
+        # 尝试从 additional_kwargs 取 reasoning_content（部分 API 将思考内容独立返回）
         if not content:
             ak = getattr(response, "additional_kwargs", {}) or {}
-            content = ak.get("reasoning_content", "")
+            rc = ak.get("reasoning_content", "").strip()
+            if rc:
+                if "</think>" in rc:
+                    content = rc.split("</think>", 1)[-1].strip()
+                if not content:
+                    content = rc  # 思考内容本身也比空好
+
+        # 最终兜底：raw 原文（含推理，总比空好）
+        if not content and raw:
+            content = raw
+
         if not content:
             print("  \033[31m⚠️  summarize 模型返回空内容，请检查模型配置\033[0m", flush=True)
         return {"messages": [AIMessage(content=content)]}

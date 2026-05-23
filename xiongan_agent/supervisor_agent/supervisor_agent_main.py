@@ -487,7 +487,6 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
 
     async def subgraph_node(state: Dict, config: RunnableConfig) -> Dict:
         execution_log = list(state.get("execution_log", []))
-        retry_count = state.get("retry_count", 0)
 
         # 从 task_plan 读取当前任务描述 / query
         task_plan = state.get("task_plan", [])
@@ -512,24 +511,31 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
         execution_log.append(log_entry)
         print(f"\n\033[35m{log_entry}{RESET}")
 
-        try:
-            kwargs = dict(factory_kwargs)
-            if subgraph_name == "analysis_agent":
-                kwargs["model_name"] = await _select_analysis_model()
-            subgraph = await factory(checkpointer=checkpointer, **kwargs)
-            inputs = {"messages": [HumanMessage(content=agent_input)]}
-            if subgraph_name == "search_agent":
-                inputs["rounds"] = 0
+        import traceback as _tb
+        MAX_ATTEMPTS = 3
+        last_exc: Exception | None = None
 
-            result = None
-            async for chunk in subgraph.astream(
-                inputs, sub_config, stream_mode="updates", version="v2"
-            ):
-                for node_name, node_data in chunk.get("data", {}).items():
-                    if "messages" in node_data:
-                        result = node_data
+        for attempt in range(MAX_ATTEMPTS):
+            try:
+                kwargs = dict(factory_kwargs)
+                if subgraph_name == "analysis_agent":
+                    kwargs["model_name"] = await _select_analysis_model()
+                subgraph = await factory(checkpointer=checkpointer, **kwargs)
+                inputs = {"messages": [HumanMessage(content=agent_input)]}
+                if subgraph_name == "search_agent":
+                    inputs["rounds"] = 0
 
-            if result and "messages" in result:
+                result = None
+                async for chunk in subgraph.astream(
+                    inputs, sub_config, stream_mode="updates", version="v2"
+                ):
+                    for node_name, node_data in chunk.get("data", {}).items():
+                        if "messages" in node_data:
+                            result = node_data
+
+                if not (result and "messages" in result):
+                    raise RuntimeError(f"{subgraph_name} 子图未返回任何消息")
+
                 last_msg = result["messages"][-1]
                 response_content = (
                     last_msg.content if hasattr(last_msg, "content") else str(last_msg)
@@ -555,6 +561,24 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                 print(f"\033[2m  内容摘要: {preview}{'...' if len(response_content) > 400 else ''}\033[0m")
 
                 is_final = subgraph_name == "analysis_agent"
+
+                # analysis_agent 输出缺少 ## 来源 时，从前序 search 任务自动补充
+                if is_final and "## 来源" not in response_content:
+                    fallback_lines: list[str] = []
+                    ref_off = 0
+                    for t in task_plan:
+                        if t.get("agent") == "search_agent" and t.get("status") == "completed" and t.get("result"):
+                            renumbered, count = _renumber_search_report(t["result"], ref_off)
+                            ref_off += count
+                            if "## 来源" in renumbered:
+                                src = renumbered.split("## 来源", 1)[1].strip()
+                                for line in src.splitlines():
+                                    s = line.strip()
+                                    if s and _re.match(r'\[\d+\]', s):
+                                        fallback_lines.append(s)
+                    if fallback_lines:
+                        response_content += "\n\n## 来源\n" + "\n".join(fallback_lines)
+
                 return {
                     "messages": [
                         AIMessage(
@@ -572,41 +596,32 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                     "retry_count": 0,
                 }
 
-        except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            error_msg = (
-                f"[{datetime.now().isoformat()}] ❌ {subgraph_name} 执行失败: {e}"
-            )
-            execution_log.append(error_msg)
-            print(f"\n\033[31m{error_msg}{RESET}")
-            print(f"\033[31m{'─' * 60}{RESET}")
-            print(f"\033[31m{tb}{RESET}")
-            print(f"\033[31m{'─' * 60}{RESET}")
+            except Exception as e:
+                last_exc = e
+                error_msg = f"[{datetime.now().isoformat()}] ❌ {subgraph_name} 执行失败 (尝试 {attempt + 1}/{MAX_ATTEMPTS}): {e}"
+                execution_log.append(error_msg)
+                print(f"\n\033[31m{error_msg}{RESET}")
+                print(f"\033[31m{_tb.format_exc()}\033[0m")
+                if attempt < MAX_ATTEMPTS - 1:
+                    log_retry = f"[{datetime.now().isoformat()}] 🔄 重试 {subgraph_name} ({attempt + 2}/{MAX_ATTEMPTS})"
+                    execution_log.append(log_retry)
+                    print(f"\n\033[33m{log_retry}{RESET}")
 
-            if retry_count < 2:
-                log_entry = f"[{datetime.now().isoformat()}] 🔄 重试 {subgraph_name} ({retry_count + 1}/3)"
-                execution_log.append(log_entry)
-                print(f"\n\033[33m{log_entry}{RESET}")
-                return {"execution_log": execution_log, "retry_count": retry_count + 1}
-
-            # 3次均失败：标记错误后继续，不打断执行流程
-            log_entry = f"[{datetime.now().isoformat()}] ❌ {subgraph_name} 3次重试均失败，跳过此任务继续执行"
-            execution_log.append(log_entry)
-            print(f"\n\033[31m{log_entry}{RESET}")
-            return {
-                "messages": [
-                    AIMessage(
-                        content=f"【{subgraph_name} 执行失败】\n多次重试后仍然失败: {e}",
-                        name="internal",
-                    )
-                ],
-                "next_step": "supervisor",
-                "execution_log": execution_log,
-                "retry_count": 0,
-            }
-
-        return {"next_step": "supervisor", "execution_log": execution_log}
+        # 所有重试均失败
+        log_entry = f"[{datetime.now().isoformat()}] ❌ {subgraph_name} {MAX_ATTEMPTS} 次均失败，跳过此任务"
+        execution_log.append(log_entry)
+        print(f"\n\033[31m{log_entry}{RESET}")
+        return {
+            "messages": [
+                AIMessage(
+                    content=f"【{subgraph_name} 执行失败】\n{MAX_ATTEMPTS} 次重试后仍失败: {last_exc}",
+                    name="internal",
+                )
+            ],
+            "next_step": "supervisor",
+            "execution_log": execution_log,
+            "retry_count": 0,
+        }
 
     return subgraph_node
 

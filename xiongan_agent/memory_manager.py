@@ -27,7 +27,7 @@ import questionary
 import redis.asyncio as redis
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
-DB_URI = "redis://10.129.107.145:6379"
+DB_URI = "redis://127.0.0.1:6390"
 
 _MAIN_RE       = re.compile(r"^main_\d{8}_\d{6}$")
 _STANDALONE_RE = re.compile(r"^main_search_\d{8}_\d{6}$")

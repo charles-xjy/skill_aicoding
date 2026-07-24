@@ -234,7 +234,7 @@ async def create_analysis_subgraph(checkpointer=None, model_name: str = "remote"
 
 async def run_as_standalone():
     from langgraph.checkpoint.redis.aio import AsyncRedisSaver
-    DB_URI = "redis://10.129.107.145:6379"
+    DB_URI = "redis://127.0.0.1:6390"
     async with AsyncRedisSaver.from_conn_string(DB_URI) as saver:
         agent = await create_analysis_subgraph(checkpointer=saver)
         config = {"configurable": {"thread_id": "analysis_test_001"}}

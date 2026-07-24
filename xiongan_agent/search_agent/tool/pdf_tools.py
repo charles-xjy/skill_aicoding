@@ -14,11 +14,22 @@ import tempfile
 from pathlib import Path
 
 import httpx
-import nest_asyncio
 from langchain_core.tools import tool
 from mineru.cli import api_client as _mc
 
-nest_asyncio.apply()
+# nest_asyncio 不支持 uvloop--langgraph dev 默认用 uvloop，模块导入时
+# 无条件 apply() 会抛 “Can't patch loop of type uvloop.Loop”。pdf_tools 实际
+# 用的是 new_event_loop() + run_until_complete（全新 loop，本就不需要 patch），
+# 这里仅做容错惰性 apply，uvloop/无 loop 时静默跳过。
+try:
+    import asyncio as _asyncio
+    import nest_asyncio as _nest_asyncio
+    try:
+        _nest_asyncio.apply(_asyncio.get_event_loop())
+    except Exception:
+        pass
+except Exception:
+    pass
 os.environ['MINERU_MODEL_SOURCE'] = "modelscope"
 MINERU_REMOTE_URL = os.environ.get("MINERU_API_URL", "http://10.129.107.145:30000")
 MINERU_REMOTE_HOST = os.environ.get("MINERU_HOST", "10.129.107.145")

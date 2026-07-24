@@ -63,7 +63,7 @@ async def run_as_standalone():
     """
     当此文件被直接运行时，作为一个独立的智能体启动
     """
-    DB_URI = "redis://localhost:6379"
+    DB_URI = "redis://127.0.0.1:6390"
     async with AsyncRedisSaver.from_conn_string(DB_URI) as saver:
         # 传入独立的 checkpointer 实现独立记忆
         agent = await create_image_subgraph(checkpointer=saver)
@@ -100,7 +100,7 @@ async def image_agent_node(state, config):
     """
     # 这里你可以选择是否为子图创建全新的独立 Redis 连接
     # 或者从 config 中提取主图的连接，但使用不同的 thread_id
-    async with AsyncRedisSaver.from_conn_string("redis://localhost:6379") as sub_saver:
+    async with AsyncRedisSaver.from_conn_string("redis://127.0.0.1:6390") as sub_saver:
         agent = await create_image_subgraph(checkpointer=sub_saver)
 
         # 🌟 实现独立记忆的关键：

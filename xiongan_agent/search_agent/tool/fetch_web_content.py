@@ -1,12 +1,18 @@
 import asyncio
 import json
 import re
+import select
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
+
+# 单个 URL 的 MCP 抓取整体超时（wall-clock）。超时即 kill 子进程返回空，
+# 由上层 fallback_body（搜索摘要）兜底，避免 _recv() 无限阻塞导致整图卡死。
+_FETCH_TIMEOUT = 30.0
 
 
 def _strip_thinking(text: str) -> str:
@@ -22,6 +28,9 @@ def _fetch_raw_via_stdio(url: str) -> str:
 
     subprocess.Popen 走 C 层 CreateProcess/fork_exec，不经过 Python os.access，
     因此 blockbuster 无法拦截，可安全地在无 event loop 的线程中调用。
+
+    整体受 _FETCH_TIMEOUT 限制：超时 kill 子进程并返回空串，
+    避免对端反爬挂起连接时 _recv() 无限阻塞。
     """
     try:
         proc = subprocess.Popen(
@@ -34,6 +43,8 @@ def _fetch_raw_via_stdio(url: str) -> str:
         print(f"  [MCP stdio] 启动失败: {e}")
         return ""
 
+    deadline = time.monotonic() + _FETCH_TIMEOUT
+
     def _send(msg: dict) -> None:
         data = json.dumps(msg).encode("utf-8")
         header = f"Content-Length: {len(data)}\r\n\r\n".encode("ascii")
@@ -41,11 +52,20 @@ def _fetch_raw_via_stdio(url: str) -> str:
         proc.stdin.flush()
 
     def _recv() -> dict:
+        """带超时地读取一个 JSON-RPC 响应。超时或对端关闭返回 {}。"""
         headers: dict[str, str] = {}
+        # 读 headers：逐行读直到空行，每行受剩余 deadline 约束
         while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return {}
+            # 用 select 等待 stdout 可读，避免 readline 永久阻塞
+            rlist, _, _ = select.select([proc.stdout], [], [], remaining)
+            if not rlist:
+                return {}  # 超时
             line = proc.stdout.readline()
             if not line:
-                return {}
+                return {}  # 对端关闭
             decoded = line.decode("utf-8", errors="replace").rstrip("\r\n")
             if not decoded:
                 break
@@ -57,6 +77,12 @@ def _fetch_raw_via_stdio(url: str) -> str:
             return {}
         data = b""
         while len(data) < length:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return {}
+            rlist, _, _ = select.select([proc.stdout], [], [], remaining)
+            if not rlist:
+                return {}
             chunk = proc.stdout.read(length - len(data))
             if not chunk:
                 break
@@ -66,6 +92,7 @@ def _fetch_raw_via_stdio(url: str) -> str:
         except Exception:
             return {}
 
+    timed_out = False
     try:
         # 1. Initialize 握手
         _send({
@@ -77,6 +104,10 @@ def _fetch_raw_via_stdio(url: str) -> str:
             },
         })
         init_resp = _recv()
+        if not init_resp:
+            timed_out = True
+            print(f"  [MCP stdio] initialize 超时（>{_FETCH_TIMEOUT:.0f}s），放弃: {url}")
+            return ""
         if "error" in init_resp:
             print(f"  [MCP stdio] initialize 失败: {init_resp['error']}")
             return ""
@@ -90,6 +121,11 @@ def _fetch_raw_via_stdio(url: str) -> str:
             "params": {"name": "get_markdown_summary", "arguments": {"url": url}},
         })
         call_resp = _recv()
+
+        if not call_resp:
+            timed_out = True
+            print(f"  [MCP stdio] 抓取超时（>{_FETCH_TIMEOUT:.0f}s），放弃: {url}")
+            return ""
 
         if "error" in call_resp:
             print(f"  [MCP stdio] tool 调用失败: {call_resp['error']}")
@@ -110,10 +146,15 @@ def _fetch_raw_via_stdio(url: str) -> str:
         except Exception:
             pass
         try:
+            # 超时场景下进程可能还在跑，先 terminate 再 wait；杀不掉就 kill
             proc.terminate()
-            proc.wait(timeout=10)
+            proc.wait(timeout=5)
         except Exception:
-            pass
+            try:
+                proc.kill()
+                proc.wait(timeout=5)
+            except Exception:
+                pass
 
 
 def _save_raw(url: str, content: str) -> None:
@@ -196,8 +237,19 @@ def _check_url_accessible(url: str, timeout: float = 5.0) -> bool:
     """
     发送 HEAD 请求预检 URL 是否可访问（4xx/5xx 视为不可访问）。
     网络异常或超时返回 True（交给 MCP 再试一次）。
+
+    微信公众号文章（mp.weixin.qq.com）反爬严重，MCP 几乎必失败且易卡住，
+    直接判定不可访问，由上层用搜索摘要兜底，不再白等一次 MCP 超时。
     """
     import urllib.request
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(url).hostname or "").lower()
+        if "mp.weixin.qq.com" in host:
+            print(f"  [预检] 微信公众号文章，反爬跳过: {url}")
+            return False
+    except Exception:
+        pass
     try:
         req = urllib.request.Request(url, method="HEAD")
         req.add_header("User-Agent", "Mozilla/5.0")

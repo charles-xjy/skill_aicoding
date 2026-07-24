@@ -22,3 +22,13 @@ node_modules/
 # Output
 output/
 
+# 搜索结果缓存（运行时生成，勿入库）
+xiongan_agent/search_agent/search_result/
+
+# 临时/试验脚本
+/xiongan_agent/try.py
+
+# 外部 AI IDE（Qoder）在仓库根注入的 SDK，非本项目依赖
+/package.json
+/package-lock.json
+

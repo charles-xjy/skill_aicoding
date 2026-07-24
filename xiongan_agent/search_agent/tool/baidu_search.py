@@ -22,7 +22,22 @@ from langchain_core.tools import tool
 from .fetch_web_content import fetch_and_summarize_sync
 
 load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
-nest_asyncio.apply()
+
+# nest_asyncio 让“在已有事件循环里再 run_until_complete”成为可能。
+# 但它不支持 uvloop——langgraph dev 默认用 uvloop，模块导入时无条件 apply()
+# 会抛 “Can't patch loop of type uvloop.Loop”，直接导致 search_agent 建不起来。
+# 这里改成惰性、容错：仅当当前 loop 是标准 asyncio loop 时才 patch，uvloop 静默跳过。
+try:
+    import asyncio as _asyncio
+    import nest_asyncio as _nest_asyncio
+    try:
+        _cur_loop = _asyncio.get_event_loop()
+        _nest_asyncio.apply(_cur_loop)
+    except Exception:
+        # 无运行中的 loop（导入阶段常见）或 loop 是 uvloop 等不支持的类型：跳过
+        pass
+except Exception:
+    pass
 
 RESET = "\033[0m"
 BOLD  = "\033[1m"
@@ -121,9 +136,29 @@ def _mcp_search_sync(query: str, max_results: int = 5) -> list:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = None
-    if loop is not None:
-        return loop.run_until_complete(_mcp_search(query, max_results))
-    return asyncio.run(_mcp_search(query, max_results))
+    if loop is None:
+        # 无运行中的 loop（langgraph ToolNode 跑同步 tool 的子线程即此情形）：
+        # 直接 asyncio.run，标准做法，不需要 nest_asyncio。
+        return asyncio.run(_mcp_search(query, max_results))
+    # 有运行中的 loop：直接 loop.run_until_complete 会报 "loop already running"，
+    # 而 nest_asyncio 不支持 uvloop。改在独立线程里用 asyncio.run 跑，
+    # 彻底不依赖 nest_asyncio，兼容 uvloop。
+    import threading
+    result = {"value": []}
+    exc = {"err": None}
+
+    def _runner():
+        try:
+            result["value"] = asyncio.run(_mcp_search(query, max_results))
+        except Exception as e:
+            exc["err"] = e
+
+    t = threading.Thread(target=_runner)
+    t.start()
+    t.join()
+    if exc["err"]:
+        raise exc["err"]
+    return result["value"]
 
 
 # ── AppBuilder REST（降级路径）──────────────────────────────────────────────

@@ -19,7 +19,7 @@ from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 from supervisor_agent import create_supervisor_graph, create_supervisor_state
 
-DB_URI = "redis://10.129.107.145:6379"
+DB_URI = "redis://127.0.0.1:6390"
 
 RESET = "\033[0m"
 

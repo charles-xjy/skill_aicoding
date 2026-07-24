@@ -25,6 +25,9 @@ output/
 # 搜索结果缓存（运行时生成，勿入库）
 xiongan_agent/search_agent/search_result/
 
+# 卫星影像素材（运行时下载，勿入库）
+xiongan_agent/image_agent/Google_earth_image/
+
 # 临时/试验脚本
 /xiongan_agent/try.py
 

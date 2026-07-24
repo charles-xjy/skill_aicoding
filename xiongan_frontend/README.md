@@ -49,15 +49,19 @@ ANALYSIS_MODEL=remote     # analysis_agent 模型：remote（主模型）或 loc
 
 ```bash
 cd xiongan_frontend
-langgraph dev --allow-blocking
+langgraph dev --allow-blocking --host 0.0.0.0
 ```
 
 启动成功后终端会打印：
 
 ```
-🚀 API: http://127.0.0.1:2024
-🎨 Studio UI: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
+🚀 API: http://0.0.0.0:2024
+🎨 Studio UI: https://smith.langchain.com/studio/?baseUrl=http://0.0.0.0:2024
 ```
+
+局域网内其他设备可通过 `http://<服务器IP>:2024` 访问。
+
+> ⚠️ 开发服务器无鉴权，暴露到局域网前请确认环境安全。
 
 ---
 
@@ -97,7 +101,7 @@ UI 默认运行在 `http://localhost:3000`。
 
 | 参数 | 值 |
 |---|---|
-| Deployment URL | `http://localhost:2024` |
+| Deployment URL | `http://localhost:2024`（局域网访问填 `http://<服务器IP>:2024`） |
 | Graph ID | `agent` |
 | LangSmith API Key | 本地运行留空 |
 

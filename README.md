@@ -43,42 +43,115 @@ graph TD
 
 ```text
 skill_aicoding/
-└── xiongan_agent/
-    ├── supervisor.py              # 系统主入口与 Supervisor 图定义
-    ├── SUPERVISOR_ARCH.md         # 架构设计说明文档
-    ├── image_agent/               # 图像处理智能体模块
-    │   ├── image_agent_main.py    # Image Agent 子图构建
-    │   └── tool/                  # 图像抓取相关工具 (Google Earth, 高德, 百度等)
-    ├── search_agent/              # 搜索与抓取智能体模块
-    │   ├── search_agent_main.py   # Search Agent 子图构建
-    │   └── tool/                  # 搜索引擎与网页抓取工具 (DuckDuckGo, PDF转MD等)
-    └── analysis_agent/            # 数据综合分析智能体模块
-        └── analysis_agent_main.py # Analysis Agent 子图构建
+├── xiongan_agent/
+│   ├── supervisor.py              # 系统主入口与 Supervisor 图定义
+│   ├── SUPERVISOR_ARCH.md         # 架构设计说明文档
+│   ├── image_agent/               # 图像处理智能体模块
+│   │   ├── image_agent_main.py    # Image Agent 子图构建
+│   │   └── tool/                  # 图像抓取相关工具 (Google Earth, 高德, 百度等)
+│   ├── search_agent/              # 搜索与抓取智能体模块
+│   │   ├── search_agent_main.py   # Search Agent 子图构建
+│   │   └── tool/                  # 搜索引擎与网页抓取工具 (DuckDuckGo, PDF转MD等)
+│   └── analysis_agent/            # 数据综合分析智能体模块
+│       └── analysis_agent_main.py # Analysis Agent 子图构建
+└── xiongan_frontend/
+    ├── langgraph.json             # LangGraph 图配置
+    └── ui/                        # 前端 UI (Next.js)
 ```
 
 ## 🚀 快速开始
 
+需要同时启动两个服务：**LangGraph API 服务器（后端）** 和 **Chat UI（前端）**，分别开两个终端窗口。
+
 ### 1. 环境准备
 
 - **Python**: Python 3.9+
+- **Node.js**: LTS 版本（从 https://nodejs.org 下载）
 - **Redis**: 系统依赖 Redis 来保存执行状态 (Checkpointer)。
   请确保本地或远程服务器运行了 Redis 实例，例如通过 Docker 启动：
   ```bash
   docker run -d -p 6379:6379 redis-stack-server
   ```
-- **配置大模型 (LLM)**: 系统默认使用 VLLM 提供的 Qwen 模型，需要修改代码中的大模型 API 配置。
+- **配置环境变量**：确认项目根目录的 `.env` 包含以下内容：
+  ```
+  VLLM_MAIN_PORT=8002       # vLLM 主模型端口
+  ANALYSIS_MODEL=remote     # analysis_agent 模型：remote（主模型）或 local（urban-vlm）
+  ```
+- **配置大模型 (LLM)**: 系统默认使用 VLLM 提供的 Qwen 模型。
   - 如果使用其他模型提供商，请修改 `xiongan_agent/supervisor.py` 及各个子 Agent 目录中的 `init_chat_model` 初始化配置。
 
-### 2. 运行系统
+### 2. 启动后端（LangGraph API 服务器）
 
-直接执行主程序入口文件：
+#### 安装 langgraph-cli
+
+```bash
+pip install "langgraph-cli[inmem]"
+```
+
+#### 启动服务器
+
+```bash
+cd xiongan_frontend
+langgraph dev --allow-blocking --host 0.0.0.0
+```
+
+启动成功后终端会打印：
+
+```
+🚀 API: http://0.0.0.0:2024
+🎨 Studio UI: https://smith.langchain.com/studio/?baseUrl=http://0.0.0.0:2024
+📚 API Docs: http://0.0.0.0:2024/docs
+```
+
+局域网内其他设备可通过 `http://<服务器IP>:2024` 访问。
+
+> ⚠️ 开发服务器无鉴权，暴露到局域网前请确认环境安全。
+
+### 3. 启动前端（Chat UI）
+
+#### 安装 pnpm（首次，仅需一次）
+
+```bash
+npm install -g pnpm
+```
+
+#### 安装项目依赖（首次运行）
+
+```bash
+cd xiongan_frontend/ui
+pnpm install
+```
+
+#### 启动开发服务器
+
+```bash
+pnpm dev
+```
+
+UI 默认运行在 `http://localhost:3000`。
+
+### 4. 连接 Agent
+
+浏览器打开 `http://localhost:3000`，填写连接参数：
+
+| 参数 | 值 |
+|---|---|
+| Deployment URL | `http://localhost:2024`（局域网访问填 `http://<服务器IP>:2024`） |
+| Graph ID | `agent` |
+| LangSmith API Key | 本地运行留空 |
+
+> Graph ID 必须填 `agent`（与 `langgraph.json` 中的 key 一致），填其他值会报 HTTP 422 错误。
+
+点击 Connect 即可开始对话。
+
+### 5. 可视化图结构
+
+直接执行主程序入口文件可生成图结构：
 
 ```bash
 cd xiongan_agent
 python supervisor.py
 ```
-
-### 3. 可视化图结构
 
 脚本运行完毕后，会自动生成系统的图结构图，并保存为 `supervisor_graph.png`，您可以直接打开查看完整的状态机拓扑。
 

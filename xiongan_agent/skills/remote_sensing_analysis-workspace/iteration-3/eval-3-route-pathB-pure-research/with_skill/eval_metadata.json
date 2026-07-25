@@ -1,0 +1,12 @@
+{
+  "eval_id": 3,
+  "eval_name": "route-pathB-pure-research",
+  "prompt": "帮我梳理一下雄安新区的总体规划和主要政策文件，不用看卫星图",
+  "assertions": [
+    {
+      "text": "路由决策正确（应触发技能）",
+      "type": "routing_correct"
+    }
+  ],
+  "note": "should_trigger=True, config=with_skill"
+}

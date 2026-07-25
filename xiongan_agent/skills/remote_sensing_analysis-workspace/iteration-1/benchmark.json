@@ -1,0 +1,457 @@
+{
+  "metadata": {
+    "skill_name": "remote-sensing-analysis",
+    "skill_path": "/home/charles/mycode/skill_aicoding/xiongan_agent/skills/remote_sensing_analysis",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-07-24T18:02:03Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "time_seconds": 0.7,
+        "tokens": 194,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09",
+          "passed": true,
+          "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "time_seconds": 0.7,
+        "tokens": 181,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09",
+          "passed": true,
+          "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 1,
+        "total": 1,
+        "time_seconds": 0.7,
+        "tokens": 183,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09",
+          "passed": false,
+          "evidence": "\u89e6\u53d1=True, \u5339\u914d='policy-document-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"policy-document-analysis\"}'"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 1,
+        "total": 1,
+        "time_seconds": 0.7,
+        "tokens": 182,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09",
+          "passed": false,
+          "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "time_seconds": 6.6,
+        "tokens": 660,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09",
+          "passed": true,
+          "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u6b22\u8fce\u6765\u4e0a\u6d77\u51fa\u5dee\uff01\u9646\u5bb6\u5634\u5730\u533a\u6709\u4e0d\u5c11\u5730\u9053\u7684\u672c\u5e2e\u83dc\u9009\u62e9\uff0c\u4ee5\u4e0b\u4e3a\u60a8\u63a8\u8350\u51e0\u5bb6\u53e3\u7891\u8f83\u597d\u7684\u9910\u5385\uff1a\\n\\n1.  **\u4e0a\u6d77\u4eba\u5bb6\uff08\u9646\u5bb6\u5634\u5e97\uff09**\\n    *   **\u7279\u70b9**\uff1a\u8001\u724c\u672c\u5e2e\u83dc\uff0c\u73af\u5883\u53e4\u6734\u96c5\u81f4\uff0c\u9002\u5408\u5546\u52a1\u5bb4\u8bf7\u6216\u5bb6\u5ead\u805a\u9910\u3002\\n    *   **\u63a8\u8350\u83dc**\uff1a\u8349\u5934\u5708\u5b50\u3001\u516b\u5b9d\u9e2d\u3001\u7ea2\u70e7\u8089\u3001\u54cd\u6cb9\u9cdd\u4e1d\u3002\\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u94f6\u57ce\u4e2d\u8def168\u53f7\uff08\u8fd1\u6b63\u5927\u5e7f\u573a\uff09\u3002\\n\\n2.  **\u798f\u548c\u6167\uff08Fuhewei\uff09**\\n    '"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 1,
+        "total": 1,
+        "time_seconds": 0.8,
+        "tokens": 190,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09",
+          "passed": false,
+          "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '{\\n  \"skill\": \"remote-sensing-analysis\"\\n}'"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 6.4,
+        "tokens": 1563,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4",
+          "passed": true,
+          "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"
+        },
+        {
+          "text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent",
+          "passed": true,
+          "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"
+        },
+        {
+          "text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09",
+          "passed": true,
+          "evidence": "image_agent=1, \u671f\u671b=1"
+        },
+        {
+          "text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4",
+          "passed": true,
+          "evidence": "search_agent=3"
+        },
+        {
+          "text": "image_agent years=[2020, 2025]",
+          "passed": true,
+          "evidence": "\u5b9e\u9645 years=[2020, 2025], \u671f\u671b=[2020, 2025]"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 6.5,
+        "tokens": 1556,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4",
+          "passed": true,
+          "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"
+        },
+        {
+          "text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent",
+          "passed": true,
+          "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"
+        },
+        {
+          "text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09",
+          "passed": true,
+          "evidence": "image_agent=1, \u671f\u671b=1"
+        },
+        {
+          "text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4",
+          "passed": true,
+          "evidence": "search_agent=3"
+        },
+        {
+          "text": "image_agent years=[2021, 2026]",
+          "passed": false,
+          "evidence": "\u5b9e\u9645 years=[2019, 2021, 2023, 2025], \u671f\u671b=[2021, 2026]"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 5.1,
+        "tokens": 1428,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4",
+          "passed": true,
+          "evidence": "\u89e3\u6790\u6210\u529f, tasks=4 \u4e2a"
+        },
+        {
+          "text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent",
+          "passed": true,
+          "evidence": "agents \u5e8f\u5217: ['search_agent', 'search_agent', 'search_agent', 'analysis_agent']"
+        },
+        {
+          "text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 0\uff0c\u8def\u5f84B\uff09",
+          "passed": true,
+          "evidence": "image_agent=0, \u671f\u671b=0"
+        },
+        {
+          "text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4",
+          "passed": true,
+          "evidence": "search_agent=3"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 5.6,
+        "tokens": 486,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4",
+          "passed": false,
+          "evidence": "\u89e3\u6790\u5931\u8d25 | \u8f93\u51fa\u524d300\u5b57: '{\\n  \"task_list\": [\\n    {\\n      \"task_id\": 1,\\n      \"agent\": \"image_agent\",\\n      \"description\": \"\u83b7\u53d6\u5317\u4eac\u90ae\u7535\u5927\u5b66\u6c99\u6cb3\u6821\u533a2020\u5e74\u7684\u536b\u661f\u5f71\u50cf\",\\n      \"parameters\": {\\n        \"location\": \"\u5317\u4eac\u90ae\u7535\u5927\u5b66\u6c99\u6cb3\u6821\u533a\",\\n        \"date\": \"2020-01-01\"\\n      }\\n    },\\n    {\\n      \"task_id\": 2,\\n      \"agent\": \"image_agent\",\\n      \"description\": \"'"
+        },
+        {
+          "text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1 agent \u662f analysis_agent",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u8def\u5f84A:1\uff09",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "search_agent \u6570\u91cf\u5728 2-4 \u4e4b\u95f4",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "image_agent years=[2020, 2025]",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 4.3,
+        "tokens": 374,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4",
+          "passed": false,
+          "evidence": "\u89e3\u6790\u5931\u8d25 | \u8f93\u51fa\u524d300\u5b57: '{\\n  \"task_list\": [\\n    {\\n      \"id\": 1,\\n      \"agent\": \"search_agent\",\\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u8fd1\u5e74\u6765\u7684\u5b98\u65b9\u5efa\u8bbe\u8fdb\u5c55\u62a5\u544a\u3001\u91cd\u5927\u57fa\u7840\u8bbe\u65bd\u9879\u76ee\u6e05\u5355\u53ca\u89c4\u5212\u66f4\u65b0\u6587\u4ef6\uff0c\u7279\u522b\u662f\u6d89\u53ca\u7a7a\u95f4\u5e03\u5c40\u8c03\u6574\u7684\u653f\u7b56\u548c\u65b0\u95fb\u3002\",\\n      \"output_key\": \"xiongan_construction_status\"\\n    },\\n    {\\n      \"id\": 2,\\n      \"agent\": \"image_agent\",\\n      \"description\": \"\u83b7\u53d6\u96c4\u5b89\u65b0\u533a\u5173\u952e\u533a\u57df\uff08\u5982\u542f\u52a8\u533a\u3001\u5bb9\u4e1c\u7247'"
+        },
+        {
+          "text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1 agent \u662f analysis_agent",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u8def\u5f84A:1\uff09",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "search_agent \u6570\u91cf\u5728 2-4 \u4e4b\u95f4",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "image_agent years=[2021, 2026]",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 4.7,
+        "tokens": 405,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4",
+          "passed": false,
+          "evidence": "\u89e3\u6790\u5931\u8d25 | \u8f93\u51fa\u524d300\u5b57: '{\\n  \"task_list\": [\\n    {\\n      \"step\": 1,\\n      \"agent\": \"search_agent\",\\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\uff082018-2035\u5e74\uff09\u7684\u5b98\u65b9\u53d1\u5e03\u5185\u5bb9\u3001\u6838\u5fc3\u5b9a\u4f4d\u3001\u7a7a\u95f4\u5e03\u5c40\u53ca\u4e3b\u8981\u53d1\u5c55\u76ee\u6807\u3002\",\\n      \"output_key\": \"xiongan_master_plan_info\"\\n    },\\n    {\\n      \"step\": 2,\\n      \"agent\": \"search_agent\",\\n      \"description\": \"\u641c\u7d22\u4e2d\u5171\u4e2d\u592e\u3001\u56fd\u52a1\u9662\u5173\u4e8e\u652f\u6301\u96c4\u5b89\u65b0\u533a\u5efa\u8bbe\u7684\u91cd\u5927\u653f\u7b56'"
+        },
+        {
+          "text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1 agent \u662f analysis_agent",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u8def\u5f84B:0\uff09",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        },
+        {
+          "text": "search_agent \u6570\u91cf\u5728 2-4 \u4e4b\u95f4",
+          "passed": false,
+          "evidence": "JSON \u65e0\u6548,\u65e0\u6cd5\u68c0\u67e5"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.6444,
+        "stddev": 0.4876,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 3.1333,
+        "stddev": 2.8944,
+        "min": 0.7,
+        "max": 6.6
+      },
+      "tokens": {
+        "mean": 681.8889,
+        "stddev": 644.9076,
+        "min": 181,
+        "max": 1563
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 4.8667,
+        "stddev": 0.6658,
+        "min": 4.3,
+        "max": 5.6
+      },
+      "tokens": {
+        "mean": 421.6667,
+        "stddev": 57.8302,
+        "min": 374,
+        "max": 486
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.64",
+      "time_seconds": "-1.7",
+      "tokens": "+260"
+    }
+  },
+  "notes": []
+}

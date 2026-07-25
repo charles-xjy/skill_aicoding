@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 1,
+    "failed": 0,
+    "total": 1
+  },
+  "expectations": [
+    {
+      "text": "路由决策正确（不应触发）",
+      "passed": true,
+      "evidence": "触发=False, 匹配=None, 期望触发=False | 输出前200字: '光学遥感和雷达遥感在成像原理、数据特性及应用场景上存在显著差异，且空间分辨率并非越高越好，需根据实际需求权衡。以下是详细解析：\\n\\n### 一、 光学遥感与雷达遥感的主要区别\\n\\n| 维度 | 光学遥感 (Optical Remote Sensing) | 雷达遥感 (Radar Remote Sensing, 主要是SAR) |\\n| :--- | :--- | :--- |\\n| **成像原理** |'"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

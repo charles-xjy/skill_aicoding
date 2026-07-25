@@ -1,0 +1,12 @@
+{
+  "eval_id": 5,
+  "eval_name": "route-notrigger-city-restaurant",
+  "prompt": "下周去上海出差，推荐几家陆家嘴附近好吃的本帮菜馆子",
+  "assertions": [
+    {
+      "text": "路由决策正确（不应触发）",
+      "type": "routing_correct"
+    }
+  ],
+  "note": "should_trigger=False, config=old_skill"
+}

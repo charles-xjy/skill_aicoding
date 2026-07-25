@@ -1,0 +1,33 @@
+{
+  "eval_id": 8,
+  "eval_name": "plan-pathA-default-years",
+  "prompt": "雄安新区这几年建设得怎么样了？我想看看空间上的变化",
+  "assertions": [
+    {
+      "text": "输出是合法 JSON 且含 tasks 数组",
+      "type": "valid_json"
+    },
+    {
+      "text": "最后一个任务的 agent 是 analysis_agent",
+      "type": "analysis_last"
+    },
+    {
+      "text": "image_agent 数量正确（路径A:1）",
+      "type": "image_agent_correct",
+      "expected_path": "A"
+    },
+    {
+      "text": "search_agent 任务数量在 2-4 之间",
+      "type": "search_count_2to4"
+    },
+    {
+      "text": "image_agent years=[2021, 2026]",
+      "type": "years_correct",
+      "expected_years": [
+        2021,
+        2026
+      ]
+    }
+  ],
+  "note": "case=pathA-default-years, expected_path=A, expected_years=[2021, 2026], config=with_skill"
+}

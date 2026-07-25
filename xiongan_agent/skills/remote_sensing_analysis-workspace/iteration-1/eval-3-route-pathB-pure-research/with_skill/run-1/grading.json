@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "pass_rate": 0.0,
+    "passed": 0,
+    "failed": 1,
+    "total": 1
+  },
+  "expectations": [
+    {
+      "text": "路由决策正确（应触发技能）",
+      "passed": false,
+      "evidence": "触发=True, 匹配='policy-document-analysis', 期望触发=True | 输出前200字: '{\"skill\": \"policy-document-analysis\"}'"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

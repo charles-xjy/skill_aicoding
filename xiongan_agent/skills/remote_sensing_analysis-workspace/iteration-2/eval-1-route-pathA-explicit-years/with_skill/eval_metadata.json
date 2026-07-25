@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "route-pathA-explicit-years",
+  "prompt": "请你根据2020和2025的卫星变化图，介绍北邮沙河校区近几年的发展",
+  "assertions": [
+    {
+      "text": "路由决策正确（应触发技能）",
+      "type": "routing_correct"
+    }
+  ],
+  "note": "should_trigger=True, config=with_skill"
+}

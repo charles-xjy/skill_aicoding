@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 1,
+    "failed": 0,
+    "total": 1
+  },
+  "expectations": [
+    {
+      "text": "路由决策正确（不应触发）",
+      "passed": true,
+      "evidence": "触发=False, 匹配=None, 期望触发=False | 输出前200字: '这是一个关于遥感基础知识的问答，不属于指定的分析技能。以下是针对您问题的解答：\\n\\n### 1. 光学遥感和雷达遥感的区别\\n\\n**光学遥感 (Optical Remote Sensing)**\\n*   **原理**：依靠太阳或地球大气对太阳光的反射，或者物体自身发射的热辐射来成像。主要利用可见光、近红外、热红外等波段。\\n*   **优点**：\\n    *   直观：成像结果与人眼所见相似，易于识别地'"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

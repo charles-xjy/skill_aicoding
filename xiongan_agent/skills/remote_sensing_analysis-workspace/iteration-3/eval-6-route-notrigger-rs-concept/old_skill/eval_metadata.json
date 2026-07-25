@@ -1,0 +1,12 @@
+{
+  "eval_id": 6,
+  "eval_name": "route-notrigger-rs-concept",
+  "prompt": "光学遥感和雷达遥感的区别是什么？空间分辨率越高越好吗？",
+  "assertions": [
+    {
+      "text": "路由决策正确（不应触发）",
+      "type": "routing_correct"
+    }
+  ],
+  "note": "should_trigger=False, config=old_skill"
+}

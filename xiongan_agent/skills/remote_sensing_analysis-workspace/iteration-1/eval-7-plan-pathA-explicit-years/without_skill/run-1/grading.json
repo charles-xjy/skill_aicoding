@@ -1,0 +1,38 @@
+{
+  "summary": {
+    "pass_rate": 0.0,
+    "passed": 0,
+    "failed": 5,
+    "total": 5
+  },
+  "expectations": [
+    {
+      "text": "输出是合法 JSON 且含 tasks 数组",
+      "passed": false,
+      "evidence": "解析失败 | 输出前300字: '{\\n  \"task_list\": [\\n    {\\n      \"task_id\": 1,\\n      \"agent\": \"image_agent\",\\n      \"description\": \"获取北京邮电大学沙河校区2020年的卫星影像\",\\n      \"parameters\": {\\n        \"location\": \"北京邮电大学沙河校区\",\\n        \"date\": \"2020-01-01\"\\n      }\\n    },\\n    {\\n      \"task_id\": 2,\\n      \"agent\": \"image_agent\",\\n      \"description\": \"'"
+    },
+    {
+      "text": "最后一个任务 agent 是 analysis_agent",
+      "passed": false,
+      "evidence": "JSON 无效,无法检查"
+    },
+    {
+      "text": "image_agent 数量正确（路径A:1）",
+      "passed": false,
+      "evidence": "JSON 无效,无法检查"
+    },
+    {
+      "text": "search_agent 数量在 2-4 之间",
+      "passed": false,
+      "evidence": "JSON 无效,无法检查"
+    },
+    {
+      "text": "image_agent years=[2020, 2025]",
+      "passed": false,
+      "evidence": "JSON 无效,无法检查"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

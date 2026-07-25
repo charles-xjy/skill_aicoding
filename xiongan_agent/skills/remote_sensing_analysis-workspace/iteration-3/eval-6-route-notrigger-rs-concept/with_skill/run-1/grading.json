@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 1,
+    "failed": 0,
+    "total": 1
+  },
+  "expectations": [
+    {
+      "text": "路由决策正确（不应触发）",
+      "passed": true,
+      "evidence": "触发=False, 匹配=None, 期望触发=False | 输出前200字: '这是一个关于遥感基本概念和技术原理的问题，不属于对特定地区发展或规划的分析，因此无法调用技能。以下是针对您问题的解答：\\n\\n### 1. 光学遥感和雷达遥感的区别\\n\\n这两种遥感技术的主要区别在于**工作波段**、**成像机理**以及**受环境影响的能力**：\\n\\n*   **工作波段与能量来源**：\\n    *   **光学遥感**（Optical Remote Sensing）：主要利用可见光、近红'"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

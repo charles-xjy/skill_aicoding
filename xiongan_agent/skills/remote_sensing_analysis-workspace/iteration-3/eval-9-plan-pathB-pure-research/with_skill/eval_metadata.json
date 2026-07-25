@@ -1,0 +1,25 @@
+{
+  "eval_id": 9,
+  "eval_name": "plan-pathB-pure-research",
+  "prompt": "帮我梳理一下雄安新区的总体规划和主要政策文件，不用看卫星图",
+  "assertions": [
+    {
+      "text": "输出是合法 JSON 且含 tasks 数组",
+      "type": "valid_json"
+    },
+    {
+      "text": "最后一个任务的 agent 是 analysis_agent",
+      "type": "analysis_last"
+    },
+    {
+      "text": "image_agent 数量正确（路径B:0）",
+      "type": "image_agent_correct",
+      "expected_path": "B"
+    },
+    {
+      "text": "search_agent 任务数量在 2-4 之间",
+      "type": "search_count_2to4"
+    }
+  ],
+  "note": "case=pathB-pure-research, expected_path=B, expected_years=None, config=with_skill"
+}

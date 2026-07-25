@@ -224,15 +224,24 @@ async def supervisor_node(state: Dict) -> Dict:
 
         # ── 2. 路由判断：关键词触发式 prompt + 限制 max_tokens ────────────────
         # 每个 skill 的 description 用于触发判断，格式化为简洁触发说明
+        # 注意：description 是触发判断的唯一依据，必须完整传入，不能截断——
+        # 否则关键的触发/不触发规则会被切掉，导致误触发或漏触发。
         skill_triggers = "\n".join(
-            f'- 输出 {{"skill": "{s["name"]}"}} 当用户请求涉及：{s["description"][:80]}'
+            f'- 输出 {{"skill": "{s["name"]}"}} 当用户请求涉及：{s["description"]}'
             for s in skills
         ) or "（暂无技能）"
 
-        system_prompt = SystemMessage(content=f"""你是城市治理分析智能体，判断用户意图并立即响应：
+        system_prompt = SystemMessage(content=f"""你是城市治理分析智能体，负责判断用户意图并立即响应。
 
+## 可用技能（仅限以下名称，禁止自创）
 {skill_triggers}
-- 其他情况（问候/闲聊/询问功能）：直接用中文简短回复，介绍可用技能
+
+## 判断规则
+- 用户请求明确匹配上述某个技能：只输出对应 JSON，如 {{"skill": "<技能名>"}}
+- 用户请求是事实问答 / 推荐 / 概念解释 / 闲聊问候等，不属于任何技能：直接用中文回复，不要输出 JSON
+- 用户似乎有分析需求但关键信息缺失（区域/时间/角度不明）：用中文反问确认
+
+技能名只能从上方列表里选一个，绝对不要编造列表里没有的技能名；不确定是否该触发时，倾向于直接回复而非强行匹配。
 
 只输出 JSON 或回复文字，禁止解释和分析。""")
 
@@ -267,7 +276,12 @@ async def supervisor_node(state: Dict) -> Dict:
         execution_log.append(log)
         print(f"\n\033[36m{log}{RESET}")
 
-        system_prompt = SystemMessage(content=skill_body)
+        # 注入当前时间：skill 正文里有「未提及年份则默认 [当前年份-5, 当前年份]」规则，
+        # 模型自身对当前年份的判断不可靠，必须显式告知，否则会乱猜年份。
+        now = datetime.now()
+        system_prompt = SystemMessage(
+            content=f"（当前时间：{now.strftime('%Y年%m月')}，用于「未提及年份则默认 [当前年份-5, 当前年份]」的规则）\n\n{skill_body}"
+        )
         response = await (await _get_main_model()).ainvoke([system_prompt] + messages)
 
         try:

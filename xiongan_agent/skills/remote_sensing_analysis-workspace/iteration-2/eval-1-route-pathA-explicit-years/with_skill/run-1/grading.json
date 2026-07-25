@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 1,
+    "failed": 0,
+    "total": 1
+  },
+  "expectations": [
+    {
+      "text": "路由决策正确（应触发技能）",
+      "passed": true,
+      "evidence": "触发=True, 匹配='remote-sensing-analysis', 期望触发=True | 输出前200字: '{\\n  \"skill\": \"remote-sensing-analysis\"\\n}'"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

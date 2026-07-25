@@ -1,0 +1,33 @@
+{
+  "summary": {
+    "pass_rate": 0.0,
+    "passed": 0,
+    "failed": 4,
+    "total": 4
+  },
+  "expectations": [
+    {
+      "text": "输出是合法 JSON 且含 tasks 数组",
+      "passed": false,
+      "evidence": "解析失败 | 输出前300字: '{\\n  \"task_list\": [\\n    {\\n      \"step\": 1,\\n      \"agent\": \"search_agent\",\\n      \"description\": \"搜索雄安新区总体规划（2018-2035年）的官方发布内容、核心定位、空间布局及主要发展目标。\",\\n      \"output_key\": \"xiongan_master_plan_info\"\\n    },\\n    {\\n      \"step\": 2,\\n      \"agent\": \"search_agent\",\\n      \"description\": \"搜索中共中央、国务院关于支持雄安新区建设的重大政策'"
+    },
+    {
+      "text": "最后一个任务 agent 是 analysis_agent",
+      "passed": false,
+      "evidence": "JSON 无效,无法检查"
+    },
+    {
+      "text": "image_agent 数量正确（路径B:0）",
+      "passed": false,
+      "evidence": "JSON 无效,无法检查"
+    },
+    {
+      "text": "search_agent 数量在 2-4 之间",
+      "passed": false,
+      "evidence": "JSON 无效,无法检查"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "eval_id": 4,
+  "eval_name": "route-notrigger-city-year-fact",
+  "prompt": "北京2022年冬奥会是在哪些场馆举办的？",
+  "assertions": [
+    {
+      "text": "路由决策正确（不应触发）",
+      "type": "routing_correct"
+    }
+  ],
+  "note": "should_trigger=False, config=old_skill"
+}

@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "remote-sensing-analysis", "runs": [{"id": "eval-1-route-pathA-explicit-years-old_skill-run-1", "prompt": "\u8bf7\u4f60\u6839\u636e2020\u548c2025\u7684\u536b\u661f\u53d8\u5316\u56fe\uff0c\u4ecb\u7ecd\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u8fd1\u51e0\u5e74\u7684\u53d1\u5c55", "eval_id": 1, "outputs": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"remote-sensing-analysis\"}"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-1-route-pathA-explicit-years-with_skill-run-1", "prompt": "\u8bf7\u4f60\u6839\u636e2020\u548c2025\u7684\u536b\u661f\u53d8\u5316\u56fe\uff0c\u4ecb\u7ecd\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u8fd1\u51e0\u5e74\u7684\u53d1\u5c55", "eval_id": 1, "outputs": [{"name": "decision.md", "type": "text", "content": "{\n\"skill\": \"remote-sensing-analysis\"\n}"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\\n\"skill\": \"remote-sensing-analysis\"\\n}'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-2-route-pathA-default-years-old_skill-run-1", "prompt": "\u96c4\u5b89\u65b0\u533a\u8fd9\u51e0\u5e74\u5efa\u8bbe\u5f97\u600e\u4e48\u6837\u4e86\uff1f\u6211\u60f3\u770b\u770b\u7a7a\u95f4\u4e0a\u7684\u53d8\u5316", "eval_id": 2, "outputs": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"remote-sensing-analysis\"}"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-2-route-pathA-default-years-with_skill-run-1", "prompt": "\u96c4\u5b89\u65b0\u533a\u8fd9\u51e0\u5e74\u5efa\u8bbe\u5f97\u600e\u4e48\u6837\u4e86\uff1f\u6211\u60f3\u770b\u770b\u7a7a\u95f4\u4e0a\u7684\u53d8\u5316", "eval_id": 2, "outputs": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"remote-sensing-analysis\"}"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-3-route-pathB-pure-research-old_skill-run-1", "prompt": "\u5e2e\u6211\u68b3\u7406\u4e00\u4e0b\u96c4\u5b89\u65b0\u533a\u7684\u603b\u4f53\u89c4\u5212\u548c\u4e3b\u8981\u653f\u7b56\u6587\u4ef6\uff0c\u4e0d\u7528\u770b\u536b\u661f\u56fe", "eval_id": 3, "outputs": [{"name": "decision.md", "type": "text", "content": "\u96c4\u5b89\u65b0\u533a\u7684\u89c4\u5212\u4f53\u7cfb\u4e0e\u653f\u7b56\u6587\u4ef6\u4f53\u7cfb\u5e9e\u5927\u4e14\u4e25\u8c28\uff0c\u4e3b\u8981\u9075\u5faa\u201c\u89c4\u5212\u5f15\u9886\u3001\u5236\u5ea6\u5148\u884c\u201d\u7684\u539f\u5219\u3002\u4ee5\u4e0b\u4e3a\u60a8\u68b3\u7406\u7684\u6838\u5fc3\u603b\u4f53\u89c4\u5212\u6846\u67b6\u53ca\u5173\u952e\u653f\u7b56\u6587\u4ef6\uff1a\n\n### \u4e00\u3001 \u603b\u4f53\u89c4\u5212\u4f53\u7cfb\n\n\u96c4\u5b89\u65b0\u533a\u7684\u89c4\u5212\u9075\u5faa\u201c1+1+3\u201d+\u201cX\u201d\u7684\u89c4\u5212\u4f53\u7cfb\uff1a\n\n1.  **\u300a\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u89c4\u5212\u7eb2\u8981\u300b**\uff08\u6838\u5fc3\u603b\u7eb2\uff09\n    *   **\u5730\u4f4d**\uff1a\u96c4\u5b89\u65b0\u533a\u53d1\u5c55\u7684\u9876\u5c42\u8bbe\u8ba1\u548c\u5b8f\u89c2\u84dd\u56fe\u3002\n    *   **\u6838\u5fc3\u5185\u5bb9**\uff1a\u660e\u786e\u4e86\u96c4\u5b89\u65b0\u533a\u7684\u6218\u7565\u5b9a\u4f4d\uff08\u7eff\u8272\u751f\u6001\u5b9c\u5c45\u65b0\u57ce\u533a\u3001\u521b\u65b0\u9a71\u52a8\u53d1\u5c55\u5f15\u9886\u533a\u3001\u534f\u8c03\u53d1\u5c55\u793a\u8303\u533a\u3001\u5f00\u653e\u53d1\u5c55\u5148\u884c\u533a\uff09\uff1b\u63d0\u51fa\u4e86\u201c1963\u201d\u5e73\u65b9\u516c\u91cc\u7684\u89c4\u5212\u8303\u56f4\uff08\u8d77\u6b65\u533a300\u5e73\u65b9\u516c\u91cc\uff0c\u4e2d\u671f\u53d1\u5c55\u533a200\u5e73\u65b9\u516c\u91cc\uff0c\u8fdc\u671f\u63a7\u5236\u533a163\u5e73\u65b9\u516c\u91cc\uff09\uff1b\u786e\u7acb\u4e86\u201c\u767d\u6d0b\u6dc0\u751f\u6001\u4f18\u5148\u201d\u3001\u201c\u5730\u4e0b\u7a7a\u95f4\u7edf\u7b79\u201d\u3001\u201c\u7ec4\u56e2\u5f0f\u53d1\u5c55\u201d\u7b49\u6838\u5fc3\u539f\u5219\u3002\n\n2.  **\u300a\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\uff082018-2035\u5e74\uff09\u300b**\uff08\u8be6\u7ec6\u6267\u884c\u89c4\u5212\uff09\n    *   **\u5730\u4f4d**\uff1a\u843d\u5b9e\u300a\u89c4\u5212\u7eb2\u8981\u300b\u7684\u5177\u4f53\u7a7a\u95f4\u5e03\u5c40\u548c\u5b9e\u65bd\u4f9d\u636e\u3002\n    *   **\u6838\u5fc3\u5185\u5bb9**\uff1a\u8be6\u7ec6\u89c4\u5b9a\u4e86\u201c\u4e00\u6838\u3001\u4e09\u533a\u3001\u591a\u7ec4\u56e2\u201d\u7684\u7a7a\u95f4\u7ed3\u6784\uff1b\u660e\u786e\u4e86\u57fa\u7840\u8bbe\u65bd\u3001\u516c\u5171\u670d\u52a1\u8bbe\u65bd\u3001\u751f\u6001\u73af\u5883\u5efa\u8bbe\u7684\u5177\u4f53\u6307\u6807\u548c\u65f6\u5e8f\uff1b\u5f3a\u8c03\u4e86\u201c\u591a\u89c4\u5408\u4e00\u201d\uff0c\u5c06\u571f\u5730\u5229\u7528\u89c4\u5212\u3001\u57ce\u4e61\u89c4\u5212\u3001\u751f\u6001\u4fdd\u62a4\u89c4\u5212\u7b49\u6574\u5408\u3002\n\n3.  **\u4e13\u9879\u89c4\u5212\uff08\u201c3\u201d\u7c7b\u4e13\u9879\u89c4\u5212\uff09**\n    *   **\u8d77\u6b65\u533a\u63a7\u5236\u6027\u8be6\u7ec6\u89c4\u5212**\uff1a\u9488\u5bf9\u8d77\u6b65\u533a\uff08300\u5e73\u65b9\u516c\u91cc\uff09\u7684\u8be6\u7ec6\u7ba1\u63a7\u3002\n    *   **\u8d77\u6b65\u533a\u8d77\u6b65\u9636\u6bb5\u53d1\u5c55\u89c4\u5212**\uff1a\u9488\u5bf9\u521d\u671f\u5efa\u8bbe\u7684\u91cd\u70b9\u9879\u76ee\u548c\u65f6\u5e8f\u5b89\u6392\u3002\n    *   **\u767d\u6d0b\u6dc0\u751f\u6001\u73af\u5883\u6cbb\u7406\u548c\u4fdd\u62a4\u89c4\u5212**\uff1a\u4e13\u95e8\u9488\u5bf9\u767d\u6d0b\u6dc0\u6c34\u73af\u5883\u7efc\u5408\u6cbb\u7406\u3001\u751f\u6001\u4fee\u590d\u7684\u89c4\u5212\u3002\n    *   *\u6ce8\uff1a\u968f\u7740\u53d1\u5c55\uff0c\u8fd8\u884d\u751f\u51fa\u4e86\u4ea4\u901a\u3001\u5e02\u653f\u3001\u5730\u4e0b\u7a7a\u95f4\u3001\u521b\u65b0\u5e73\u53f0\u7b49\u591a\u4e2a\u4e13\u9879\u89c4\u5212\u3002*\n\n### \u4e8c\u3001 \u4e3b\u8981\u653f\u7b56\u6587\u4ef6\u4f53\u7cfb\n\n\u96c4\u5b89\u65b0\u533a\u7684\u653f\u7b56\u4ee5\u201c\u6539\u9769\u201d\u4e3a\u7279\u8272\uff0c\u5efa\u7acb\u4e86\u76f8\u5bf9\u72ec\u7acb\u4e8e\u4f20\u7edf\u5730\u7ea7\u5e02\u7684\u4f53\u5236\u673a\u5236\u3002\u4e3b\u8981\u653f\u7b56\u53ef\u5206\u4e3a\u4ee5\u4e0b\u51e0\u7c7b\uff1a\n\n#### 1. \u9876\u5c42\u8bbe\u8ba1\u4e0e\u4f53\u5236\u673a\u5236\n*   **\u300a\u4e2d\u5171\u4e2d\u592e \u56fd\u52a1\u9662\u5173\u4e8e\u652f\u6301\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u5168\u9762\u6df1\u5316\u6539\u9769\u548c\u6269\u5927\u5f00\u653e\u7684\u6307\u5bfc\u610f\u89c1\u300b**\n    *   \u8fd9\u662f\u96c4\u5b89\u65b0\u533a\u6539\u9769\u7684\u884c\u52a8\u6307\u5357\uff0c\u63d0\u51fa\u4e8630\u4f59\u9879\u91cd\u5927\u6539\u9769\u4e3e\u63aa\uff0c\u5305\u62ec\u6237\u7c4d\u3001\u571f\u5730\u3001\u91d1\u878d\u3001\u4eba\u624d\u7b49\u3002\n*   **\u300a\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u6761\u4f8b\u300b**\uff08\u5730\u65b9\u6027\u6cd5\u89c4\uff09\n    *   2022\u5e7410\u6708\u901a\u8fc7\uff0c2023\u5e741\u67081\u65e5\u65bd\u884c\u3002\u8fd9\u662f\u96c4\u5b89\u65b0\u533a\u7b2c\u4e00\u90e8\u7efc\u5408\u6027\u5730\u65b9\u6cd5\u89c4\uff0c\u4ece\u6cd5\u5f8b\u5c42\u9762\u786e\u8ba4\u4e86\u65b0\u533a\u7684\u7ba1\u7406\u4f53\u5236\u3001\u89c4\u5212\u5efa\u8bbe\u3001\u4ea7\u4e1a\u53d1\u5c55\u3001\u751f\u6001\u73af\u5883\u7b49\u5185\u5bb9\u3002\n\n#### 2. \u571f\u5730\u4e0e\u4f4f\u623f\u4fdd\u969c\n*   **\u300a\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u571f\u5730\u4f7f\u7528\u6743\u51fa\u8ba9\u7ba1\u7406\u529e\u6cd5\u300b**\n    *   \u521b\u65b0\u571f\u5730\u4f9b\u5e94\u65b9\u5f0f\uff0c\u5982\u201c\u5e26\u65b9\u6848\u51fa\u8ba9\u201d\u3001\u201c\u6807\u51c6\u5730\u201d\u51fa\u8ba9\u7b49\u3002\n*   **\u300a\u5173\u4e8e\u5efa\u7acb\u5065\u5168\u96c4\u5b89\u65b0\u533a\u4f4f\u623f\u4f9b\u5e94\u548c\u4fdd\u969c\u4f53\u7cfb\u7684\u610f\u89c1\u300b**\n    *   \u63d0\u51fa\u201c\u79df\u8d2d\u5e76\u4e3e\u3001\u5148\u79df\u540e\u552e\u3001\u79df\u8d2d\u540c\u6743\u201d\u7684\u4f4f\u623f\u5236\u5ea6\uff0c\u5efa\u7acb\u591a\u4e3b\u4f53\u4f9b\u7ed9\u3001\u591a\u6e20\u9053\u4fdd\u969c\u3001\u79df\u8d2d\u5e76\u4e3e\u7684\u4f4f\u623f\u5236\u5ea6\u3002\n\n#### 3. \u4ea7\u4e1a\u4e0e\u521b\u65b0\n*   **\u300a\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u6218\u7565\u6027\u65b0\u5174\u4ea7\u4e1a\u96c6\u805a\u533a\u53d1\u5c55\u89c4\u5212\u300b**\n    *   \u805a\u7126\u65b0\u4e00\u4ee3\u4fe1\u606f\u6280\u672f\u3001\u65b0\u6750\u6599\u3001\u751f\u7269\u533b\u836f\u3001\u7a7a\u5929\u4fe1\u606f\u3001\u8282\u80fd\u73af\u4fdd\u7b49\u672a\u6765\u4ea7\u4e1a\u3002\n*   **\u300a\u5173\u4e8e\u9f13\u52b1\u548c\u652f\u6301\u793e\u4f1a\u8d44\u672c\u53c2\u4e0e\u96c4\u5b89\u65b0\u533a\u5efa\u8bbe\u8fd0\u8425\u7684\u6307\u5bfc\u610f\u89c1\u300b**\n    *   \u9f13\u52b1PPP\uff08\u653f\u5e9c\u548c\u793e\u4f1a\u8d44\u672c\u5408\u4f5c\uff09\u6a21\u5f0f\u53c2\u4e0e\u65b0\u533a\u57fa\u7840\u8bbe\u65bd\u5efa\u8bbe\u3002\n\n#### 4. \u751f\u6001\u4e0e\u73af\u5883\n*   **\u300a\u767d\u6d0b\u6dc0\u751f\u6001\u73af\u5883\u6cbb\u7406\u548c\u4fdd\u62a4\u89c4\u5212\u300b**\n    *   \u8bbe\u5b9a\u4e86\u5177\u4f53\u7684\u6c34\u8d28\u76ee\u6807\uff08\u5982\u5168\u9762\u6d88\u9664\u52a3V\u7c7b\u6c34\u4f53\uff09\u548c\u751f\u6001\u4fee\u590d\u4efb\u52a1\u3002\n*   **\u300a\u96c4\u5b89\u65b0\u533a\u7eff\u8272\u5efa\u7b51\u53d1\u5c55\u4e09\u5e74\u884c\u52a8\u8ba1\u5212\u300b**\n    *   \u5f3a\u5236\u63a8\u884c\u7eff\u8272\u5efa\u7b51\u6807\u51c6\uff0c\u8981\u6c42\u65b0\u5efa\u5efa\u7b51\u5168\u9762\u6267\u884c\u7eff\u8272\u5efa\u7b51\u6807\u51c6\u3002\n\n#### 5. \u516c\u5171\u670d\u52a1\u4e0e\u6c11\u751f\n*   **\u300a\u96c4\u5b89\u65b0\u533a\u516c\u5171\u670d\u52a1\u914d\u5957\u89c4\u5212\u300b**\n    *   \u5f15\u5165\u5317\u4eac\u4f18\u8d28\u6559\u80b2\u3001\u533b\u7597\u8d44\u6e90\uff08\u5982\u5317\u4eac\u56db\u4e2d\u3001\u5ba3\u6b66\u533b\u9662\u7b49\u5728\u96c4\u5b89\u8bbe\u7acb\u5206\u6821/\u5206\u9662\uff09\u3002\n*   **\u300a\u96c4\u5b89\u65b0\u533a\u4eba\u624d\u5f15\u8fdb\u4e0e\u57f9\u517b\u653f\u7b56\u300b**\n    *   \u63d0\u4f9b\u4f4f\u623f\u8865\u8d34\u3001\u5b50\u5973\u5165\u5b66\u3001\u533b\u7597\u7eff\u8272\u901a\u9053\u7b49\u4f18\u60e0\u63aa\u65bd\u3002\n\n### \u4e09\u3001 \u6838\u5fc3\u89c4\u5212\u7406\u5ff5\u603b\u7ed3\n\n1.  **\u751f\u6001\u4f18\u5148**\uff1a\u4ee5\u767d\u6d0b\u6dc0\u751f\u6001\u4fdd\u62a4\u4e3a\u524d\u63d0\uff0c\u84dd\u7eff\u7a7a\u95f4\u5360\u6bd4\u7a33\u5b9a\u572870%\u5de6\u53f3\u3002\n2.  **\u4ee5\u4eba\u4e3a\u672c**\uff1a\u6253\u9020\u201c15\u5206\u949f\u751f\u6d3b\u5708\u201d\uff0c\u5f3a\u8c03\u516c\u5171\u670d\u52a1\u5747\u7b49\u5316\u3002\n3.  **\u5730\u4e0b\u7a7a\u95f4\u7edf\u7b79**\uff1a\u5efa\u7acb\u7efc\u5408\u7ba1\u5eca\u4f53\u7cfb\uff0c\u5b9e\u73b0\u201c\u7ba1\u9053\u5730\u4e0b\u8d70\u3001\u4ea4\u901a\u5206\u5c42\u5efa\u201d\u3002\n4.  **\u6570\u5b57\u5b6a\u751f**\uff1a\u540c\u6b65\u5efa\u8bbe\u6570\u5b57\u96c4\u5b89\u65b0\u533a\uff0c\u5b9e\u73b0\u7269\u7406\u57ce\u5e02\u4e0e\u6570\u5b57\u57ce\u5e02\u865a\u5b9e\u6620\u5c04\u3002\n5.  **\u4ea4\u901a\u7eff\u8272**\uff1a\u6784\u5efa\u201c\u4e09\u7eb5\u4e24\u6a2a\u201d\u9ad8\u901f\u94c1\u8def\u7f51\uff0c\u5185\u90e8\u4ea4\u901a\u4ee5\u516c\u5171\u4ea4\u901a\u548c\u6162\u884c\u7cfb\u7edf\u4e3a\u4e3b\u3002\n\n\u8fd9\u4e9b\u6587\u4ef6\u548c\u89c4\u5212\u5171\u540c\u6784\u6210\u4e86\u96c4\u5b89\u65b0\u533a\u53d1\u5c55\u7684\u6cd5\u5f8b\u3001\u653f\u7b56\u548c\u7a7a\u95f4\u57fa\u7840\uff0c\u786e\u4fdd\u4e86\u5176\u4f5c\u4e3a\u201c\u5343\u5e74\u5927\u8ba1\u201d\u7684\u9ad8\u8d77\u70b9\u89c4\u5212\u548c\u9ad8\u6807\u51c6\u5efa\u8bbe\u3002\u5982\u9700\u67e5\u9605\u5177\u4f53\u6587\u4ef6\u5168\u6587\uff0c\u5efa\u8bae\u8bbf\u95ee**\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u5b98\u7f51**\u6216**\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd\u4e2d\u592e\u4eba\u6c11\u653f\u5e9c\u7f51\u7ad9**\u7684\u4e13\u9898\u4e13\u680f\u3002"}], "grading": {"summary": {"pass_rate": 0.0, "passed": 0, "failed": 1, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": false, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '\u96c4\u5b89\u65b0\u533a\u7684\u89c4\u5212\u4f53\u7cfb\u4e0e\u653f\u7b56\u6587\u4ef6\u4f53\u7cfb\u5e9e\u5927\u4e14\u4e25\u8c28\uff0c\u4e3b\u8981\u9075\u5faa\u201c\u89c4\u5212\u5f15\u9886\u3001\u5236\u5ea6\u5148\u884c\u201d\u7684\u539f\u5219\u3002\u4ee5\u4e0b\u4e3a\u60a8\u68b3\u7406\u7684\u6838\u5fc3\u603b\u4f53\u89c4\u5212\u6846\u67b6\u53ca\u5173\u952e\u653f\u7b56\u6587\u4ef6\uff1a\\n\\n### \u4e00\u3001 \u603b\u4f53\u89c4\u5212\u4f53\u7cfb\\n\\n\u96c4\u5b89\u65b0\u533a\u7684\u89c4\u5212\u9075\u5faa\u201c1+1+3\u201d+\u201cX\u201d\u7684\u89c4\u5212\u4f53\u7cfb\uff1a\\n\\n1.  **\u300a\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u89c4\u5212\u7eb2\u8981\u300b**\uff08\u6838\u5fc3\u603b\u7eb2\uff09\\n    *   **\u5730\u4f4d**\uff1a\u96c4\u5b89\u65b0\u533a\u53d1\u5c55\u7684\u9876\u5c42\u8bbe\u8ba1\u548c\u5b8f\u89c2\u84dd\u56fe\u3002\\n    *   **\u6838\u5fc3\u5185\u5bb9**\uff1a\u660e\u786e\u4e86\u96c4\u5b89\u65b0\u533a\u7684\u6218\u7565\u5b9a\u4f4d\uff08\u7eff'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-3-route-pathB-pure-research-with_skill-run-1", "prompt": "\u5e2e\u6211\u68b3\u7406\u4e00\u4e0b\u96c4\u5b89\u65b0\u533a\u7684\u603b\u4f53\u89c4\u5212\u548c\u4e3b\u8981\u653f\u7b56\u6587\u4ef6\uff0c\u4e0d\u7528\u770b\u536b\u661f\u56fe", "eval_id": 3, "outputs": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"remote-sensing-analysis\"}"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-4-route-notrigger-city-year-fact-old_skill-run-1", "prompt": "\u5317\u4eac2022\u5e74\u51ac\u5965\u4f1a\u662f\u5728\u54ea\u4e9b\u573a\u9986\u4e3e\u529e\u7684\uff1f", "eval_id": 4, "outputs": [{"name": "decision.md", "type": "text", "content": "\u5317\u4eac2022\u5e74\u51ac\u5965\u4f1a\u4e3b\u8981\u5728\u4e09\u4e2a\u8d5b\u533a\u4e3e\u884c\uff1a\u5317\u4eac\u8d5b\u533a\u3001\u5ef6\u5e86\u8d5b\u533a\u548c\u5f20\u5bb6\u53e3\u8d5b\u533a\u3002\u4e3b\u8981\u573a\u9986\u5305\u62ec\uff1a\n\n1. **\u5317\u4eac\u8d5b\u533a**\uff1a\n   - **\u56fd\u5bb6\u4f53\u80b2\u573a\uff08\u9e1f\u5de2\uff09**\uff1a\u5f00\u95ed\u5e55\u5f0f\u4e3e\u529e\u5730\u3002\n   - **\u56fd\u5bb6\u6e38\u6cf3\u4e2d\u5fc3\uff08\u6c34\u7acb\u65b9/\u51b0\u7acb\u65b9\uff09**\uff1a\u4e3e\u529e\u51b0\u58f6\u6bd4\u8d5b\u3002\n   - **\u56fd\u5bb6\u901f\u6ed1\u9986\uff08\u51b0\u4e1d\u5e26\uff09**\uff1a\u4e3e\u529e\u901f\u5ea6\u6ed1\u51b0\u6bd4\u8d5b\u3002\n   - **\u56fd\u5bb6\u4f53\u80b2\u9986**\uff1a\u4e3e\u529e\u82b1\u6837\u6ed1\u51b0\u548c\u51b0\u7403\u6bd4\u8d5b\u3002\n   - **\u9996\u90fd\u4f53\u80b2\u9986**\uff1a\u4e3e\u529e\u77ed\u9053\u901f\u6ed1\u548c\u82b1\u6837\u6ed1\u51b0\u6bd4\u8d5b\u3002\n   - **\u4e94\u68f5\u677e\u4f53\u80b2\u4e2d\u5fc3**\uff1a\u4e3e\u529e\u51b0\u7403\u6bd4\u8d5b\u3002\n   - **\u9996\u94a2\u6ed1\u96ea\u5927\u8df3\u53f0**\uff1a\u4e3e\u529e\u81ea\u7531\u5f0f\u6ed1\u96ea\u5927\u8df3\u53f0\u548c\u5355\u677f\u6ed1\u96ea\u5927\u8df3\u53f0\u6bd4\u8d5b\u3002\n\n2. **\u5ef6\u5e86\u8d5b\u533a**\uff1a\n   - **\u56fd\u5bb6\u96ea\u8f66\u96ea\u6a47\u4e2d\u5fc3**\uff1a\u4e3e\u529e\u96ea\u8f66\u3001\u96ea\u6a47\u9879\u76ee\u3002\n   - **\u56fd\u5bb6\u9ad8\u5c71\u6ed1\u96ea\u4e2d\u5fc3**\uff1a\u4e3e\u529e\u9ad8\u5c71\u6ed1\u96ea\u9879\u76ee\u3002\n\n3. **\u5f20\u5bb6\u53e3\u8d5b\u533a**\uff1a\n   - **\u4e91\u9876\u6ed1\u96ea\u516c\u56ed**\uff1a\u4e3e\u529e\u5355\u677f\u6ed1\u96ea\u548c\u81ea\u7531\u5f0f\u6ed1\u96ea\u9879\u76ee\uff08\u9664\u5927\u8df3\u53f0\u5916\uff09\u3002\n   - **\u56fd\u5bb6\u8df3\u53f0\u6ed1\u96ea\u4e2d\u5fc3\u201c\u96ea\u5982\u610f\u201d**\uff1a\u4e3e\u529e\u8df3\u53f0\u6ed1\u96ea\u9879\u76ee\u3002\n   - **\u56fd\u5bb6\u8d8a\u91ce\u6ed1\u96ea\u4e2d\u5fc3**\uff1a\u4e3e\u529e\u8d8a\u91ce\u6ed1\u96ea\u9879\u76ee\u3002\n   - **\u56fd\u5bb6\u51ac\u5b63\u4e24\u9879\u4e2d\u5fc3**\uff1a\u4e3e\u529e\u51ac\u5b63\u4e24\u9879\u9879\u76ee\u3002\n\n\u8fd9\u4e9b\u573a\u9986\u5171\u540c\u6784\u6210\u4e86\u5317\u4eac2022\u5e74\u51ac\u5965\u4f1a\u7684\u7ade\u8d5b\u548c\u914d\u5957\u8bbe\u65bd\u3002"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u5317\u4eac2022\u5e74\u51ac\u5965\u4f1a\u4e3b\u8981\u5728\u4e09\u4e2a\u8d5b\u533a\u4e3e\u884c\uff1a\u5317\u4eac\u8d5b\u533a\u3001\u5ef6\u5e86\u8d5b\u533a\u548c\u5f20\u5bb6\u53e3\u8d5b\u533a\u3002\u4e3b\u8981\u573a\u9986\u5305\u62ec\uff1a\\n\\n1. **\u5317\u4eac\u8d5b\u533a**\uff1a\\n   - **\u56fd\u5bb6\u4f53\u80b2\u573a\uff08\u9e1f\u5de2\uff09**\uff1a\u5f00\u95ed\u5e55\u5f0f\u4e3e\u529e\u5730\u3002\\n   - **\u56fd\u5bb6\u6e38\u6cf3\u4e2d\u5fc3\uff08\u6c34\u7acb\u65b9/\u51b0\u7acb\u65b9\uff09**\uff1a\u4e3e\u529e\u51b0\u58f6\u6bd4\u8d5b\u3002\\n   - **\u56fd\u5bb6\u901f\u6ed1\u9986\uff08\u51b0\u4e1d\u5e26\uff09**\uff1a\u4e3e\u529e\u901f\u5ea6\u6ed1\u51b0\u6bd4\u8d5b\u3002\\n   - **\u56fd\u5bb6\u4f53\u80b2\u9986**\uff1a\u4e3e\u529e\u82b1\u6837\u6ed1\u51b0\u548c\u51b0\u7403\u6bd4\u8d5b\u3002\\n   - **\u9996\u90fd\u4f53\u80b2\u9986**\uff1a\u4e3e\u529e\u77ed\u9053\u901f\u6ed1\u548c\u82b1'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-4-route-notrigger-city-year-fact-with_skill-run-1", "prompt": "\u5317\u4eac2022\u5e74\u51ac\u5965\u4f1a\u662f\u5728\u54ea\u4e9b\u573a\u9986\u4e3e\u529e\u7684\uff1f", "eval_id": 4, "outputs": [{"name": "decision.md", "type": "text", "content": "2022\u5e74\u5317\u4eac\u51ac\u5965\u4f1a\u4e3b\u8981\u5728\u4e09\u4e2a\u8d5b\u533a\u4e3e\u884c\uff0c\u5171\u4f7f\u7528\u4e8625\u4e2a\u573a\u9986\uff0c\u5177\u4f53\u5206\u5e03\u5982\u4e0b\uff1a\n\n1.  **\u5317\u4eac\u8d5b\u533a**\uff1a\u4e3b\u8981\u8d1f\u8d23\u51b0\u4e0a\u9879\u76ee\u3002\n    *   \u56fd\u5bb6\u6e38\u6cf3\u4e2d\u5fc3\uff08\u201c\u6c34\u7acb\u65b9\u201d\uff0c\u51ac\u5965\u4f1a\u671f\u95f4\u8f6c\u6362\u4e3a\u201c\u51b0\u7acb\u65b9\u201d\u7528\u4e8e\u51b0\u58f6\u6bd4\u8d5b\uff09\n    *   \u56fd\u5bb6\u4f53\u80b2\u9986\n    *   \u4e94\u68f5\u677e\u4f53\u80b2\u4e2d\u5fc3\uff08\u51ac\u5965\u4f1a\u671f\u95f4\u79f0\u4e3a\u201c\u4e94\u68f5\u677e\u51b0\u4e0a\u8fd0\u52a8\u4e2d\u5fc3\u201d\uff09\n    *   \u9996\u90fd\u4f53\u80b2\u9986\n\n2.  **\u5ef6\u5e86\u8d5b\u533a**\uff1a\u4e3b\u8981\u8d1f\u8d23\u9ad8\u5c71\u6ed1\u96ea\u3001\u96ea\u8f66\u3001\u96ea\u6a47\u7b49\u96ea\u4e0a\u9879\u76ee\u3002\n    *   \u56fd\u5bb6\u9ad8\u5c71\u6ed1\u96ea\u4e2d\u5fc3\n    *   \u56fd\u5bb6\u96ea\u8f66\u96ea\u6a47\u4e2d\u5fc3\uff08\u201c\u96ea\u6e38\u9f99\u201d\uff09\n    *   \u5ef6\u5e86\u51ac\u5965\u6751\n\n3.  **\u5f20\u5bb6\u53e3\u8d5b\u533a\uff08\u4f4d\u4e8e\u6cb3\u5317\u7701\u5f20\u5bb6\u53e3\u5e02\uff09**\uff1a\u4e3b\u8981\u8d1f\u8d23\u8d8a\u91ce\u6ed1\u96ea\u3001\u8df3\u53f0\u6ed1\u96ea\u3001\u5317\u6b27\u4e24\u9879\u3001\u51ac\u5b63\u4e24\u9879\u7b49\u96ea\u4e0a\u9879\u76ee\u3002\n    *   \u56fd\u5bb6\u8d8a\u91ce\u6ed1\u96ea\u4e2d\u5fc3\n    *   \u56fd\u5bb6\u8df3\u53f0\u6ed1\u96ea\u4e2d\u5fc3\uff08\u201c\u96ea\u5982\u610f\u201d\uff09\n    *   \u4e91\u9876\u6ed1\u96ea\u516c\u56ed\n    *   \u5f20\u5bb6\u53e3\u51ac\u5965\u6751\n    *   \u56fd\u5bb6\u51ac\u5b63\u4e24\u9879\u4e2d\u5fc3\n\n\u5f00\u5e55\u5f0f\u548c\u95ed\u5e55\u5f0f\u5219\u5728**\u56fd\u5bb6\u4f53\u80b2\u573a**\uff08\u201c\u9e1f\u5de2\u201d\uff09\u4e3e\u884c\uff0c\u8be5\u573a\u9986\u4e5f\u4f4d\u4e8e\u5317\u4eac\u8d5b\u533a\u3002"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '2022\u5e74\u5317\u4eac\u51ac\u5965\u4f1a\u4e3b\u8981\u5728\u4e09\u4e2a\u8d5b\u533a\u4e3e\u884c\uff0c\u5171\u4f7f\u7528\u4e8625\u4e2a\u573a\u9986\uff0c\u5177\u4f53\u5206\u5e03\u5982\u4e0b\uff1a\\n\\n1.  **\u5317\u4eac\u8d5b\u533a**\uff1a\u4e3b\u8981\u8d1f\u8d23\u51b0\u4e0a\u9879\u76ee\u3002\\n    *   \u56fd\u5bb6\u6e38\u6cf3\u4e2d\u5fc3\uff08\u201c\u6c34\u7acb\u65b9\u201d\uff0c\u51ac\u5965\u4f1a\u671f\u95f4\u8f6c\u6362\u4e3a\u201c\u51b0\u7acb\u65b9\u201d\u7528\u4e8e\u51b0\u58f6\u6bd4\u8d5b\uff09\\n    *   \u56fd\u5bb6\u4f53\u80b2\u9986\\n    *   \u4e94\u68f5\u677e\u4f53\u80b2\u4e2d\u5fc3\uff08\u51ac\u5965\u4f1a\u671f\u95f4\u79f0\u4e3a\u201c\u4e94\u68f5\u677e\u51b0\u4e0a\u8fd0\u52a8\u4e2d\u5fc3\u201d\uff09\\n    *   \u9996\u90fd\u4f53\u80b2\u9986\\n\\n2.  **\u5ef6\u5e86\u8d5b\u533a**\uff1a\u4e3b\u8981\u8d1f\u8d23\u9ad8\u5c71\u6ed1\u96ea\u3001\u96ea\u8f66\u3001\u96ea\u6a47\u7b49\u96ea\u4e0a\u9879'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-5-route-notrigger-city-restaurant-old_skill-run-1", "prompt": "\u4e0b\u5468\u53bb\u4e0a\u6d77\u51fa\u5dee\uff0c\u63a8\u8350\u51e0\u5bb6\u9646\u5bb6\u5634\u9644\u8fd1\u597d\u5403\u7684\u672c\u5e2e\u83dc\u9986\u5b50", "eval_id": 5, "outputs": [{"name": "decision.md", "type": "text", "content": "\u4e3a\u60a8\u7cbe\u9009\u4e86\u51e0\u5bb6\u9646\u5bb6\u5634\u53ca\u6d66\u4e1c\u6838\u5fc3\u533a\u57df\u53e3\u7891\u8f83\u597d\u7684\u672c\u5e2e\u83dc\u9986\uff0c\u6db5\u76d6\u4e0d\u540c\u6863\u6b21\u548c\u98ce\u683c\uff1a\n\n1.  **\u8001\u6b63\u5174\u83dc\u9986 (\u9646\u5bb6\u5634\u5e97)**\n    *   **\u7279\u8272**\uff1a\u4e2d\u534e\u8001\u5b57\u53f7\uff0c\u4e3b\u6253\u4f20\u7edf\u6b63\u5b97\u672c\u5e2e\u83dc\uff0c\u53e3\u5473\u6d53\u6cb9\u8d64\u9171\uff0c\u7ecf\u5178\u65e0\u8bef\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u8349\u5934\u5708\u5b50\u3001\u6cb9\u7206\u867e\u3001\u516b\u5b9d\u8fa3\u9171\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u94f6\u57ce\u4e2d\u8def501\u53f7\u4e0a\u6d77\u4e2d\u5fc3\u5927\u53a6\u9644\u8fd1\uff08\u8ddd\u79bb\u9646\u5bb6\u5634\u6838\u5fc3\u533a\u5f88\u8fd1\uff09\u3002\n\n2.  **\u5170\u4ead\u9910\u5385 (\u56fd\u91d1\u4e2d\u5fc3\u5e97)**\n    *   **\u7279\u8272**\uff1a\u4f4d\u4e8eIFC\u56fd\u91d1\u4e2d\u5fc3\uff0c\u73af\u5883\u4f18\u96c5\uff0c\u9002\u5408\u5546\u52a1\u5bb4\u8bf7\u6216\u7cbe\u81f4\u7528\u9910\u3002\u83dc\u54c1\u7cbe\u81f4\uff0c\u5728\u4f20\u7edf\u57fa\u7840\u4e0a\u6709\u6240\u521b\u65b0\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u7ea2\u70e7\u8089\u3001\u87f9\u7c89\u8c46\u8150\u3001\u54cd\u6cb9\u9cdd\u7cca\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u4e16\u7eaa\u5927\u90538\u53f7\u56fd\u91d1\u4e2d\u5fc3\u5546\u573a\u5185\u3002\n\n3.  **\u4eba\u548c\u9986**\n    *   **\u7279\u8272**\uff1a\u4e0a\u6d77\u9ad8\u7aef\u672c\u5e2e\u83dc\u4ee3\u8868\u4e4b\u4e00\uff0c\u670d\u52a1\u6781\u81f4\uff0c\u73af\u5883\u53e4\u8272\u53e4\u9999\uff0c\u6ce8\u91cd\u98df\u6750\u54c1\u8d28\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u677e\u9f20\u6842\u9c7c\u3001\u6a31\u6843\u8089\u3001\u7cdf\u9999\u7cfb\u5217\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u94f6\u57ce\u4e2d\u8def501\u53f7\u4e0a\u6d77\u4e2d\u5fc3\u5927\u53a6103\u5c42\uff08\u9700\u6ce8\u610f\u9884\u7ea6\uff0c\u4e14\u4f4d\u4e8e\u9ad8\u5904\uff0c\u98ce\u666f\u597d\u4f46\u9700\u786e\u8ba4\u8425\u4e1a\u72b6\u6001\uff09\u3002\n\n4.  **\u9f0e\u6cf0\u4e30 (\u56fd\u91d1\u4e2d\u5fc3\u5e97)**\n    *   **\u7279\u8272**\uff1a\u867d\u7136\u4ee5\u5c0f\u7b3c\u5305\u95fb\u540d\uff0c\u4f46\u5176\u4e0a\u6d77\u70b9\u5fc3\u548c\u5c0f\u83dc\u4e5f\u975e\u5e38\u5730\u9053\uff0c\u73af\u5883\u5e72\u51c0\u8212\u9002\uff0c\u9002\u5408\u5feb\u901f\u7b80\u9910\u6216\u5bb6\u5ead\u805a\u9910\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u5c0f\u7b3c\u5305\u3001\u87f9\u7c89\u5c0f\u7b3c\u3001\u7ea2\u70e7\u8089\u3001\u8471\u6cb9\u62cc\u9762\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u4e16\u7eaa\u5927\u90538\u53f7\u56fd\u91d1\u4e2d\u5fc3\u5546\u573a\u5185\u3002\n\n5.  **\u82cf\u6d59\u6c47 (\u6d66\u4e1c\u4e3d\u601d\u5361\u5c14\u987f\u9152\u5e97)**\n    *   **\u7279\u8272**\uff1a\u878d\u5408\u672c\u5e2e\u83dc\u4e0e\u6c5f\u6d59\u83dc\uff0c\u53e3\u5473\u504f\u6e05\u6de1\u9c9c\u7f8e\uff0c\u73af\u5883\u5962\u534e\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u677e\u9f20\u6842\u9c7c\u3001\u9f99\u4e95\u867e\u4ec1\u3001\u7ea2\u70e7\u8089\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u4e16\u7eaa\u5927\u90531\u53f7\u4e0a\u6d77\u6d66\u4e1c\u4e3d\u601d\u5361\u5c14\u987f\u9152\u5e97\u5185\u3002\n\n**\u6e29\u99a8\u63d0\u793a\uff1a**\n*   \u9646\u5bb6\u5634\u6838\u5fc3\u533a\u57df\u9910\u5385\u8f83\u591a\uff0c\u5468\u672b\u6216\u8282\u5047\u65e5\u665a\u9910\u65f6\u6bb5\u901a\u5e38\u9700\u6392\u961f\uff0c\u5efa\u8bae\u63d0\u524d\u7535\u8bdd\u9884\u7ea6\u6216\u53d6\u53f7\u3002\n*   \u90e8\u5206\u9ad8\u7aef\u9910\u5385\uff08\u5982\u4eba\u548c\u9986\u3001\u82cf\u6d59\u6c47\uff09\u53ef\u80fd\u5bf9\u7740\u88c5\u6216\u6d88\u8d39\u6709\u8981\u6c42\uff0c\u5efa\u8bae\u53bb\u4e4b\u524d\u786e\u8ba4\u3002\n*   \u5982\u679c\u60f3\u4f53\u9a8c\u66f4\u63a5\u5730\u6c14\u7684\u672c\u5730\u5473\u9053\uff0c\u4e5f\u53ef\u4ee5\u8003\u8651\u5f80\u5357\u7a0d\u5fae\u8d70\u51e0\u6b65\u5230**\u5357\u4eac\u4e1c\u8def**\u6216**\u8c6b\u56ed**\u9644\u8fd1\uff0c\u90a3\u91cc\u6709\u66f4\u591a\u4f20\u7edf\u8001\u5b57\u53f7\u3002\n\n\u795d\u60a8\u51fa\u5dee\u987a\u5229\uff0c\u7528\u9910\u6109\u5feb\uff01"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u4e3a\u60a8\u7cbe\u9009\u4e86\u51e0\u5bb6\u9646\u5bb6\u5634\u53ca\u6d66\u4e1c\u6838\u5fc3\u533a\u57df\u53e3\u7891\u8f83\u597d\u7684\u672c\u5e2e\u83dc\u9986\uff0c\u6db5\u76d6\u4e0d\u540c\u6863\u6b21\u548c\u98ce\u683c\uff1a\\n\\n1.  **\u8001\u6b63\u5174\u83dc\u9986 (\u9646\u5bb6\u5634\u5e97)**\\n    *   **\u7279\u8272**\uff1a\u4e2d\u534e\u8001\u5b57\u53f7\uff0c\u4e3b\u6253\u4f20\u7edf\u6b63\u5b97\u672c\u5e2e\u83dc\uff0c\u53e3\u5473\u6d53\u6cb9\u8d64\u9171\uff0c\u7ecf\u5178\u65e0\u8bef\u3002\\n    *   **\u63a8\u8350\u83dc**\uff1a\u8349\u5934\u5708\u5b50\u3001\u6cb9\u7206\u867e\u3001\u516b\u5b9d\u8fa3\u9171\u3002\\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u94f6\u57ce\u4e2d\u8def501\u53f7\u4e0a\u6d77\u4e2d\u5fc3\u5927\u53a6\u9644\u8fd1\uff08\u8ddd\u79bb\u9646\u5bb6\u5634\u6838\u5fc3\u533a\u5f88\u8fd1\uff09\u3002\\n\\n2.  **\u5170\u4ead\u9910\u5385 (\u56fd\u91d1\u4e2d'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-5-route-notrigger-city-restaurant-with_skill-run-1", "prompt": "\u4e0b\u5468\u53bb\u4e0a\u6d77\u51fa\u5dee\uff0c\u63a8\u8350\u51e0\u5bb6\u9646\u5bb6\u5634\u9644\u8fd1\u597d\u5403\u7684\u672c\u5e2e\u83dc\u9986\u5b50", "eval_id": 5, "outputs": [{"name": "decision.md", "type": "text", "content": "\u4e0a\u6d77\u9646\u5bb6\u5634\u53ca\u5468\u8fb9\u6709\u4e0d\u5c11\u8bc4\u4ef7\u4e0d\u9519\u7684\u672c\u5e2e\u83dc\u9986\u5b50\uff0c\u4ee5\u4e0b\u4e3a\u60a8\u63a8\u8350\u51e0\u5bb6\u4e0d\u540c\u98ce\u683c\u7684\u9910\u5385\uff1a\n\n1. **\u4e0a\u6d77\u8001\u996d\u5e97\uff08\u8c6b\u56ed\u5e97\uff09**\n   - \u867d\u7136\u4e0d\u5728\u9646\u5bb6\u5634\u6838\u5fc3\u533a\uff0c\u4f46\u8ddd\u79bb\u4e0d\u8fdc\uff08\u6253\u8f66\u7ea615-20\u5206\u949f\uff09\uff0c\u662f\u6b63\u5b97\u7684\u672c\u5e2e\u83dc\u8001\u5b57\u53f7\u3002\n   - **\u7279\u8272**\uff1a\u6cb9\u7206\u867e\u3001\u516b\u5b9d\u9e2d\u3001\u8349\u5934\u5708\u5b50\uff0c\u53e3\u5473\u4f20\u7edf\u6d53\u90c1\u3002\n   - **\u9002\u5408**\uff1a\u60f3\u8981\u4f53\u9a8c\u6700\u7ecf\u5178\u4e0a\u6d77\u5473\u9053\uff0c\u4e14\u613f\u610f\u7a0d\u5fae\u8dd1\u8fdc\u4e00\u70b9\u7684\u5546\u52a1\u5bb4\u8bf7\u3002\n\n2. **\u752c\u5e9c\uff08\u9646\u5bb6\u5634\u4e2d\u5fc3L\u578b\u5e7f\u573a\u5e97/\u56fd\u91d1\u4e2d\u5fc3\u5e97\uff09**\n   - \u5b9a\u4f4d\u4e2d\u9ad8\u7aef\uff0c\u73af\u5883\u4f18\u96c5\uff0c\u9002\u5408\u5546\u52a1\u62db\u5f85\u3002\n   - **\u7279\u8272**\uff1a\u4e3b\u6253\u752c\u5e2e\u83dc\uff08\u5b81\u6ce2\u83dc\uff0c\u4e0a\u6d77\u4eba\u975e\u5e38\u559c\u7231\uff09\uff0c\u62db\u724c\u83dc\u5305\u62ec\u87f9\u7c89\u8c46\u8150\u3001\u7ea2\u818f\u545b\u87f9\u3001\u9ec4\u9c7c\u6c64\u7b49\uff0c\u670d\u52a1\u7ec6\u81f4\u3002\n   - **\u6ce8\u610f**\uff1a\u9700\u8981\u63d0\u524d\u9884\u8ba2\uff0c\u6392\u961f\u8f83\u4e45\u3002\n\n3. **\u4eba\u548c\u9986**\n   - \u9690\u85cf\u5728\u8001\u6d0b\u623f\u6216\u7279\u8272\u5efa\u7b51\u4e2d\uff08\u90e8\u5206\u5206\u5e97\u9760\u8fd1\u6d66\u4e1c\u6216\u9ec4\u6d66\u4ea4\u754c\uff09\uff0c\u73af\u5883\u6781\u5177\u6d77\u6d3e\u98ce\u60c5\u3002\n   - **\u7279\u8272**\uff1a\u7cbe\u81f4\u672c\u5e2e\u83dc\uff0c\u5982\u718f\u9c7c\u3001\u7ea2\u70e7\u8089\u3001\u54cd\u6cb9\u9cdd\u7cca\uff0c\u6446\u76d8\u8bb2\u7a76\uff0c\u53e3\u5473\u504f\u751c\u6da6\u3002\n   - **\u9002\u5408**\uff1a\u559c\u6b22\u6c1b\u56f4\u611f\u3001\u6ce8\u91cd\u7528\u9910\u73af\u5883\u7684\u98df\u5ba2\u3002\n\n4. **\u82cf\u6d59\u6c47\uff08\u9646\u5bb6\u5634\u5e97\uff09**\n   - \u7ecf\u5178\u8fde\u9501\uff0c\u54c1\u8d28\u7a33\u5b9a\uff0c\u4ea4\u901a\u4fbf\u5229\u3002\n   - **\u7279\u8272**\uff1a\u878d\u5408\u6c5f\u6d59\u53e3\u5473\uff0c\u672c\u5e2e\u83dc\u548c\u676d\u5e2e\u83dc\u90fd\u6709\uff0c\u5982\u677e\u9f20\u9cdc\u9c7c\u3001\u4e1c\u5761\u8089\u3001\u87f9\u7c89\u72ee\u5b50\u5934\u3002\n   - **\u9002\u5408**\uff1a\u7a33\u59a5\u4e4b\u9009\uff0c\u4e0d\u5bb9\u6613\u51fa\u9519\uff0c\u9002\u5408\u5feb\u901f\u7528\u9910\u6216\u5c0f\u578b\u805a\u4f1a\u3002\n\n5. **\u5170\u5fc3\u9910\u5385\uff08\u8fd1\u9646\u5bb6\u5634\uff09**\n   - \u672c\u5730\u4eba\u5e38\u53bb\u7684\u5c0f\u9986\u5b50\uff0c\u6027\u4ef7\u6bd4\u9ad8\u3002\n   - **\u7279\u8272**\uff1a\u5bb6\u5e38\u672c\u5e2e\u5473\uff0c\u5982\u7cd6\u918b\u5c0f\u6392\u3001\u7092\u7d20\u83dc\u3001\u814c\u7b03\u9c9c\uff0c\u5473\u9053\u5730\u9053\u3002\n   - **\u9002\u5408**\uff1a\u5de5\u4f5c\u9910\u6216\u60f3\u4f53\u9a8c\u5e02\u4e95\u6c14\u606f\u7684\u51fa\u5dee\u4eba\u58eb\u3002\n\n**\u6e29\u99a8\u63d0\u793a\uff1a**\n- \u672c\u5e2e\u83dc\u666e\u904d\u504f\u751c\uff0c\u5982\u6709\u5fcc\u53e3\u53ef\u63d0\u524d\u544a\u77e5\u670d\u52a1\u5458\u3002\n- \u9646\u5bb6\u5634\u5730\u533a\u9910\u996e\u7ade\u4e89\u6fc0\u70c8\uff0c\u5468\u672b\u6216\u996d\u70b9\u9ad8\u5cf0\u5efa\u8bae\u52a1\u5fc5\u63d0\u524d\u7535\u8bdd\u9884\u8ba2\u3002\n- \u5982\u9700\u66f4\u7cbe\u51c6\u63a8\u8350\uff0c\u53ef\u544a\u77e5\u60a8\u7684\u9884\u7b97\u8303\u56f4\u548c\u7528\u9910\u4eba\u6570\u3002"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u4e0a\u6d77\u9646\u5bb6\u5634\u53ca\u5468\u8fb9\u6709\u4e0d\u5c11\u8bc4\u4ef7\u4e0d\u9519\u7684\u672c\u5e2e\u83dc\u9986\u5b50\uff0c\u4ee5\u4e0b\u4e3a\u60a8\u63a8\u8350\u51e0\u5bb6\u4e0d\u540c\u98ce\u683c\u7684\u9910\u5385\uff1a\\n\\n1. **\u4e0a\u6d77\u8001\u996d\u5e97\uff08\u8c6b\u56ed\u5e97\uff09**\\n   - \u867d\u7136\u4e0d\u5728\u9646\u5bb6\u5634\u6838\u5fc3\u533a\uff0c\u4f46\u8ddd\u79bb\u4e0d\u8fdc\uff08\u6253\u8f66\u7ea615-20\u5206\u949f\uff09\uff0c\u662f\u6b63\u5b97\u7684\u672c\u5e2e\u83dc\u8001\u5b57\u53f7\u3002\\n   - **\u7279\u8272**\uff1a\u6cb9\u7206\u867e\u3001\u516b\u5b9d\u9e2d\u3001\u8349\u5934\u5708\u5b50\uff0c\u53e3\u5473\u4f20\u7edf\u6d53\u90c1\u3002\\n   - **\u9002\u5408**\uff1a\u60f3\u8981\u4f53\u9a8c\u6700\u7ecf\u5178\u4e0a\u6d77\u5473\u9053\uff0c\u4e14\u613f\u610f\u7a0d\u5fae\u8dd1\u8fdc\u4e00\u70b9\u7684\u5546\u52a1\u5bb4\u8bf7\u3002\\n\\n2. **\u752c\u5e9c\uff08\u9646\u5bb6\u5634\u4e2d\u5fc3L\u578b\u5e7f\u573a\u5e97/\u56fd\u91d1\u4e2d'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-6-route-notrigger-rs-concept-old_skill-run-1", "prompt": "\u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\u662f\u4ec0\u4e48\uff1f\u7a7a\u95f4\u5206\u8fa8\u7387\u8d8a\u9ad8\u8d8a\u597d\u5417\uff1f", "eval_id": 6, "outputs": [{"name": "decision.md", "type": "text", "content": "\u8fd9\u662f\u4e00\u4e2a\u5173\u4e8e\u9065\u611f\u57fa\u7840\u77e5\u8bc6\u7684\u95ee\u7b54\uff0c\u4e0d\u5c5e\u4e8e\u6307\u5b9a\u7684\u5206\u6790\u6280\u80fd\u3002\u4ee5\u4e0b\u662f\u9488\u5bf9\u60a8\u95ee\u9898\u7684\u89e3\u7b54\uff1a\n\n### 1. \u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\n\n**\u5149\u5b66\u9065\u611f (Optical Remote Sensing)**\n*   **\u539f\u7406**\uff1a\u4f9d\u9760\u592a\u9633\u6216\u5730\u7403\u5927\u6c14\u5bf9\u592a\u9633\u5149\u7684\u53cd\u5c04\uff0c\u6216\u8005\u7269\u4f53\u81ea\u8eab\u53d1\u5c04\u7684\u70ed\u8f90\u5c04\u6765\u6210\u50cf\u3002\u4e3b\u8981\u5229\u7528\u53ef\u89c1\u5149\u3001\u8fd1\u7ea2\u5916\u3001\u70ed\u7ea2\u5916\u7b49\u6ce2\u6bb5\u3002\n*   **\u4f18\u70b9**\uff1a\n    *   \u76f4\u89c2\uff1a\u6210\u50cf\u7ed3\u679c\u4e0e\u4eba\u773c\u6240\u89c1\u76f8\u4f3c\uff0c\u6613\u4e8e\u8bc6\u522b\u5730\u7269\u3002\n    *   \u8272\u5f69\u4e30\u5bcc\uff1a\u53ef\u4ee5\u83b7\u53d6\u591a\u5149\u8c31\u6216\u9ad8\u5149\u8c31\u6570\u636e\uff0c\u5229\u4e8e\u571f\u5730\u5229\u7528\u5206\u7c7b\u3001\u690d\u88ab\u76d1\u6d4b\u7b49\u3002\n*   **\u7f3a\u70b9**\uff1a\n    *   **\u53d7\u5929\u6c14\u5f71\u54cd\u5927**\uff1a\u4e91\u5c42\u3001\u96e8\u96fe\u4f1a\u963b\u6321\u53ef\u89c1\u5149\u548c\u8fd1\u7ea2\u5916\u5149\uff0c\u65e0\u6cd5\u8fdb\u884c\u7a7f\u900f\u89c2\u6d4b\u3002\n    *   **\u53d7\u65f6\u95f4\u9650\u5236**\uff1a\u4e3b\u8981\u4f9d\u8d56\u767d\u5929\u9633\u5149\uff08\u70ed\u7ea2\u5916\u9664\u5916\uff09\uff0c\u65e0\u6cd5\u5168\u5929\u5019\u5de5\u4f5c\u3002\n\n**\u96f7\u8fbe\u9065\u611f (Radar Remote Sensing)**\n*   **\u539f\u7406**\uff1a\u4e3b\u52a8\u53d1\u5c04\u5fae\u6ce2\u4fe1\u53f7\uff0c\u5e76\u63a5\u6536\u5730\u7269\u53cd\u5c04\u56de\u6765\u7684\u56de\u6ce2\u4fe1\u53f7\u8fdb\u884c\u6210\u50cf\u3002\u4e3b\u8981\u5229\u7528\u5fae\u6ce2\u6ce2\u6bb5\u3002\n*   **\u4f18\u70b9**\uff1a\n    *   **\u5168\u5929\u5019\u3001\u5168\u5929\u65f6**\uff1a\u5fae\u6ce2\u80fd\u7a7f\u900f\u4e91\u5c42\u3001\u96e8\u96fe\u548c\u9ed1\u6697\uff0c\u4e0d\u53d7\u5149\u7167\u548c\u5929\u6c14\u6761\u4ef6\u9650\u5236\u3002\n    *   **\u7a7f\u900f\u6027\u5f3a**\uff1a\u5bf9\u690d\u88ab\u3001\u5e72\u71e5\u571f\u58e4\u3001\u51b0\u5c42\u6709\u4e00\u5b9a\u7684\u7a7f\u900f\u80fd\u529b\u3002\n    *   **\u5bf9\u8868\u9762\u7ed3\u6784\u654f\u611f**\uff1a\u5bf9\u5730\u8868\u7684\u7c97\u7cd9\u5ea6\u3001\u4ecb\u7535\u5e38\u6570\uff08\u5982\u542b\u6c34\u91cf\uff09\u975e\u5e38\u654f\u611f\u3002\n*   **\u7f3a\u70b9**\uff1a\n    *   \u56fe\u50cf\u89e3\u8bd1\u96be\u5ea6\u5927\uff1a\u56fe\u50cf\u5448\u73b0\u6591\u70b9\u72b6\uff08\u76f8\u5e72\u6591\uff09\uff0c\u4e0d\u50cf\u5149\u5b66\u56fe\u50cf\u90a3\u6837\u76f4\u89c2\uff0c\u9700\u8981\u4e13\u4e1a\u77e5\u8bc6\u89e3\u8bd1\u3002\n    *   \u6570\u636e\u91cf\u901a\u5e38\u8f83\u5927\uff0c\u5904\u7406\u590d\u6742\u3002\n\n**\u603b\u7ed3\u5bf9\u6bd4\u8868\uff1a**\n\n| \u7279\u5f81 | \u5149\u5b66\u9065\u611f | \u96f7\u8fbe\u9065\u611f |\n| :--- | :--- | :--- |\n| **\u80fd\u91cf\u6765\u6e90** | \u88ab\u52a8\uff08\u53cd\u5c04\u592a\u9633\u5149/\u81ea\u8eab\u70ed\u8f90\u5c04\uff09 | \u4e3b\u52a8\uff08\u81ea\u8eab\u53d1\u5c04\u5fae\u6ce2\uff09 |\n| **\u5de5\u4f5c\u6761\u4ef6** | \u6674\u6717\u3001\u767d\u5929\u4e3a\u4e3b | \u5168\u5929\u5019\u3001\u5168\u5929\u65f6 |\n| **\u6210\u50cf\u76f4\u89c2\u6027** | \u9ad8\uff0c\u7c7b\u4f3c\u7167\u7247 | \u4f4e\uff0c\u5b58\u5728\u76f8\u5e72\u6591\u566a\u58f0 |\n| **\u4e3b\u8981\u5e94\u7528** | \u571f\u5730\u5229\u7528\u3001\u690d\u88ab\u8986\u76d6\u3001\u57ce\u5e02\u666f\u89c2 | \u5730\u5f62\u6d4b\u7ed8\u3001\u5f62\u53d8\u76d1\u6d4b\u3001\u6d2a\u6c34\u76d1\u6d4b\u3001\u68ee\u6797\u751f\u7269\u91cf |\n\n---\n\n### 2. \u7a7a\u95f4\u5206\u8fa8\u7387\u8d8a\u9ad8\u8d8a\u597d\u5417\uff1f\n\n**\u7b54\u6848\u662f\u4e0d\u4e00\u5b9a\u3002** \u867d\u7136\u9ad8\u5206\u8fa8\u7387\u80fd\u63d0\u4f9b\u66f4\u591a\u7684\u7ec6\u8282\uff0c\u4f46\u201c\u5408\u9002\u201d\u6bd4\u201c\u6700\u9ad8\u201d\u66f4\u91cd\u8981\u3002\u4ee5\u4e0b\u662f\u9700\u8981\u8003\u8651\u7684\u56e0\u7d20\uff1a\n\n**\u9ad8\u5206\u8fa8\u7387\u7684\u4f18\u52bf\uff1a**\n*   **\u7ec6\u8282\u6e05\u6670**\uff1a\u80fd\u8bc6\u522b\u5c0f\u578b\u76ee\u6807\uff08\u5982\u8f66\u8f86\u3001\u5355\u4e2a\u6811\u6728\u3001\u5c4b\u9876\u7ed3\u6784\uff09\u3002\n*   **\u7cbe\u5ea6\u66f4\u9ad8**\uff1a\u5bf9\u4e8e\u9700\u8981\u7cbe\u786e\u8fb9\u754c\u63d0\u53d6\u7684\u4efb\u52a1\uff08\u5982\u57ce\u5e02\u89c4\u5212\u3001\u8fdd\u6cd5\u5efa\u7b51\u67e5\u5904\uff09\u66f4\u6709\u5229\u3002\n\n**\u9ad8\u5206\u8fa8\u7387\u7684\u52a3\u52bf\uff08\u4e3a\u4ec0\u4e48\u4e0d\u662f\u8d8a\u9ad8\u8d8a\u597d\uff09\uff1a**\n1.  **\u6570\u636e\u91cf\u5927**\uff1a\u5206\u8fa8\u7387\u7ffb\u500d\uff0c\u6570\u636e\u91cf\u53ef\u80fd\u5448\u5e73\u65b9\u7ea7\u589e\u957f\uff0c\u5bf9\u5b58\u50a8\u3001\u4f20\u8f93\u548c\u5904\u7406\u80fd\u529b\u8981\u6c42\u6781\u9ad8\u3002\n2.  **\u8986\u76d6\u8303\u56f4\u5c0f**\uff1a\u9ad8\u5206\u8fa8\u7387\u5f71\u50cf\u901a\u5e38\u5e45\u5bbd\u8f83\u7a84\uff0c\u8986\u76d6\u76f8\u540c\u9762\u79ef\u6240\u9700\u7684\u6570\u636e\u91cf\u5de8\u5927\uff0c\u6210\u672c\u9ad8\u6602\u3002\n3.  **\u89e3\u8bd1\u96be\u5ea6\u589e\u52a0**\uff1a\u8fc7\u4e8e\u8be6\u7ec6\u7684\u7ec6\u8282\u53ef\u80fd\u5f15\u5165\u4e0d\u5fc5\u8981\u7684\u201c\u566a\u58f0\u201d\uff0c\u4f7f\u5f97\u5b8f\u89c2\u7279\u5f81\u53cd\u800c\u96be\u4ee5\u8fa8\u8bc6\u3002\u4f8b\u5982\uff0c\u5728\u505a\u5927\u8303\u56f4\u519c\u4e1a\u4f5c\u7269\u5206\u7c7b\u65f6\uff0c\u8fc7\u9ad8\u7684\u5206\u8fa8\u7387\u53ef\u80fd\u5bfc\u81f4\u540c\u4e00\u79cd\u7c7b\u4f5c\u7269\u56e0\u7eb9\u7406\u5dee\u5f02\u8fc7\u5927\u800c\u88ab\u8bef\u5224\u4e3a\u4e0d\u540c\u7c7b\u522b\u3002\n4.  **\u65f6\u6548\u6027\u964d\u4f4e**\uff1a\u9ad8\u5206\u8fa8\u7387\u536b\u661f\u6570\u91cf\u76f8\u5bf9\u8f83\u5c11\uff0c\u91cd\u8bbf\u5468\u671f\u53ef\u80fd\u8f83\u957f\uff0c\u96be\u4ee5\u6ee1\u8db3\u9ad8\u9891\u6b21\u76d1\u6d4b\u9700\u6c42\u3002\n\n**\u7ed3\u8bba\uff1a**\n\u5e94\u6839\u636e**\u5177\u4f53\u5e94\u7528\u9700\u6c42**\u9009\u62e9\u5408\u9002\u7684\u6570\u636e\u3002\n*   **\u5927\u8303\u56f4\u76d1\u6d4b**\uff08\u5982\u5168\u7403\u68ee\u6797\u8986\u76d6\u53d8\u5316\uff09\uff1a\u4e2d\u4f4e\u5206\u8fa8\u7387\uff08\u598230\u7c73\u3001250\u7c73\uff09\u66f4\u5408\u9002\u3002\n*   **\u4e2d\u89c2\u5e94\u7528**\uff08\u5982\u57ce\u5e02\u6269\u5f20\u3001\u519c\u4e1a\u79cd\u690d\u7ed3\u6784\uff09\uff1a\u4e2d\u9ad8\u5206\u8fa8\u7387\uff08\u598210\u7c73\u300120\u7c73\uff09\u6027\u4ef7\u6bd4\u6700\u9ad8\u3002\n*   **\u5fae\u89c2\u7cbe\u7ec6\u5e94\u7528**\uff08\u5982\u8fdd\u7ae0\u5efa\u7b51\u8bc6\u522b\u3001\u4ea4\u901a\u6d41\u5206\u6790\uff09\uff1a\u9700\u8981\u9ad8\u5206\u8fa8\u7387\uff081\u7c73\u4ee5\u4e0b\uff0c\u751a\u81f3\u4e9a\u7c73\u7ea7\uff09\u3002\n\n\u56e0\u6b64\uff0c\u6ca1\u6709\u7edd\u5bf9\u7684\u201c\u8d8a\u597d\u201d\uff0c\u53ea\u6709\u201c\u6700\u5408\u9002\u201d\u3002"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u8fd9\u662f\u4e00\u4e2a\u5173\u4e8e\u9065\u611f\u57fa\u7840\u77e5\u8bc6\u7684\u95ee\u7b54\uff0c\u4e0d\u5c5e\u4e8e\u6307\u5b9a\u7684\u5206\u6790\u6280\u80fd\u3002\u4ee5\u4e0b\u662f\u9488\u5bf9\u60a8\u95ee\u9898\u7684\u89e3\u7b54\uff1a\\n\\n### 1. \u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\\n\\n**\u5149\u5b66\u9065\u611f (Optical Remote Sensing)**\\n*   **\u539f\u7406**\uff1a\u4f9d\u9760\u592a\u9633\u6216\u5730\u7403\u5927\u6c14\u5bf9\u592a\u9633\u5149\u7684\u53cd\u5c04\uff0c\u6216\u8005\u7269\u4f53\u81ea\u8eab\u53d1\u5c04\u7684\u70ed\u8f90\u5c04\u6765\u6210\u50cf\u3002\u4e3b\u8981\u5229\u7528\u53ef\u89c1\u5149\u3001\u8fd1\u7ea2\u5916\u3001\u70ed\u7ea2\u5916\u7b49\u6ce2\u6bb5\u3002\\n*   **\u4f18\u70b9**\uff1a\\n    *   \u76f4\u89c2\uff1a\u6210\u50cf\u7ed3\u679c\u4e0e\u4eba\u773c\u6240\u89c1\u76f8\u4f3c\uff0c\u6613\u4e8e\u8bc6\u522b\u5730'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-6-route-notrigger-rs-concept-with_skill-run-1", "prompt": "\u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\u662f\u4ec0\u4e48\uff1f\u7a7a\u95f4\u5206\u8fa8\u7387\u8d8a\u9ad8\u8d8a\u597d\u5417\uff1f", "eval_id": 6, "outputs": [{"name": "decision.md", "type": "text", "content": "\u8fd9\u662f\u4e00\u4e2a\u5173\u4e8e\u9065\u611f\u57fa\u672c\u6982\u5ff5\u548c\u6280\u672f\u539f\u7406\u7684\u95ee\u9898\uff0c\u4e0d\u5c5e\u4e8e\u5bf9\u7279\u5b9a\u5730\u533a\u53d1\u5c55\u6216\u89c4\u5212\u7684\u5206\u6790\uff0c\u56e0\u6b64\u65e0\u6cd5\u8c03\u7528\u6280\u80fd\u3002\u4ee5\u4e0b\u662f\u9488\u5bf9\u60a8\u95ee\u9898\u7684\u89e3\u7b54\uff1a\n\n### 1. \u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\n\n\u8fd9\u4e24\u79cd\u9065\u611f\u6280\u672f\u7684\u4e3b\u8981\u533a\u522b\u5728\u4e8e**\u5de5\u4f5c\u6ce2\u6bb5**\u3001**\u6210\u50cf\u673a\u7406**\u4ee5\u53ca**\u53d7\u73af\u5883\u5f71\u54cd\u7684\u80fd\u529b**\uff1a\n\n*   **\u5de5\u4f5c\u6ce2\u6bb5\u4e0e\u80fd\u91cf\u6765\u6e90**\uff1a\n    *   **\u5149\u5b66\u9065\u611f**\uff08Optical Remote Sensing\uff09\uff1a\u4e3b\u8981\u5229\u7528\u53ef\u89c1\u5149\u3001\u8fd1\u7ea2\u5916\u548c\u77ed\u6ce2\u7ea2\u5916\u6ce2\u6bb5\u3002\u5b83\u901a\u5e38\u88ab\u52a8\u63a5\u6536\u592a\u9633\u8f90\u5c04\uff08\u767d\u5929\uff09\u6216\u7269\u4f53\u81ea\u8eab\u53d1\u5c04\u7684\u70ed\u7ea2\u5916\u8f90\u5c04\u3002\n    *   **\u96f7\u8fbe\u9065\u611f**\uff08Radar Remote Sensing\uff0c\u5408\u6210\u5b54\u5f84\u96f7\u8fbe SAR\uff09\uff1a\u5229\u7528\u5fae\u6ce2\u6ce2\u6bb5\u3002\u5b83\u662f\u4e3b\u52a8\u9065\u611f\uff0c\u81ea\u5e26\u5fae\u6ce2\u6e90\uff0c\u5411\u5730\u9762\u53d1\u5c04\u5fae\u6ce2\u4fe1\u53f7\u5e76\u63a5\u6536\u56de\u6ce2\u3002\n\n*   **\u6210\u50cf\u673a\u7406**\uff1a\n    *   **\u5149\u5b66**\uff1a\u8bb0\u5f55\u5730\u7269\u7684**\u53cd\u5c04\u7387**\u6216**\u8f90\u5c04\u4eae\u5ea6**\uff0c\u5f62\u6210\u7c7b\u4f3c\u7167\u7247\u7684\u56fe\u50cf\uff0c\u76f4\u89c2\u53cd\u6620\u5730\u7269\u7684\u989c\u8272\u548c\u7eb9\u7406\u7279\u5f81\u3002\n    *   **\u96f7\u8fbe**\uff1a\u8bb0\u5f55\u5730\u7269\u7684**\u540e\u5411\u6563\u5c04\u7cfb\u6570**\u3002\u56fe\u50cf\u4eae\u5ea6\u4e0d\u4ec5\u53d6\u51b3\u4e8e\u5730\u7269\u6750\u8d28\uff0c\u8fd8\u5f3a\u70c8\u4f9d\u8d56\u4e8e\u5730\u8868\u7684\u51e0\u4f55\u7ed3\u6784\uff08\u5982\u7c97\u7cd9\u5ea6\u3001\u503e\u89d2\uff09\u548c\u4ecb\u7535\u5e38\u6570\uff08\u5982\u542b\u6c34\u91cf\uff09\u3002\n\n*   **\u73af\u5883\u5f71\u54cd\uff08\u7a7f\u900f\u6027\u4e0e\u5168\u5929\u5019\uff09**\uff1a\n    *   **\u5149\u5b66**\uff1a\u53d7\u5929\u6c14\u5f71\u54cd\u6781\u5927\u3002**\u4e91\u5c42\u3001\u96fe\u6c14\u3001\u70df\u96fe**\u4f1a\u963b\u6321\u53ef\u89c1\u5149\u548c\u7ea2\u5916\u7ebf\uff0c\u5bfc\u81f4\u65e0\u6cd5\u6210\u50cf\uff1b\u4e14\u53ea\u80fd\u5728\u767d\u5929\uff08\u9664\u70ed\u7ea2\u5916\u5916\uff09\u5de5\u4f5c\u3002\n    *   **\u96f7\u8fbe**\uff1a\u5177\u6709**\u7a7f\u900f\u6027**\uff08\u5fae\u6ce2\u53ef\u7a7f\u900f\u4e91\u5c42\u3001\u96e8\u96fe\u751a\u81f3\u90e8\u5206\u690d\u88ab\u548c\u5e72\u71e5\u571f\u58e4\uff09\u3002\u56e0\u6b64\uff0c\u96f7\u8fbe\u53ef\u4ee5**\u5168\u5929\u5019\u3001\u5168\u5929\u65f6**\u5de5\u4f5c\uff0c\u4e0d\u53d7\u5149\u7167\u548c\u5927\u591a\u6570\u5929\u6c14\u6761\u4ef6\u7684\u9650\u5236\u3002\n\n### 2. \u7a7a\u95f4\u5206\u8fa8\u7387\u8d8a\u9ad8\u8d8a\u597d\u5417\uff1f\n\n**\u7b54\u6848\u662f\u5426\u5b9a\u7684\u3002** \u5206\u8fa8\u7387\u5e76\u975e\u8d8a\u9ad8\u8d8a\u597d\uff0c\u800c\u662f\u53d6\u51b3\u4e8e**\u5e94\u7528\u573a\u666f**\u548c**\u7efc\u5408\u6210\u672c\u6548\u76ca**\u3002\n\n**\u9ad8\u5206\u8fa8\u7387\u7684\u4f18\u52bf\uff1a**\n*   **\u7ec6\u8282\u4e30\u5bcc**\uff1a\u80fd\u8bc6\u522b\u66f4\u5c0f\u7684\u5730\u7269\uff08\u5982\u5355\u4e2a\u8f66\u8f86\u3001\u5c0f\u578b\u5efa\u7b51\u3001\u8f66\u8f86\u578b\u53f7\u7b49\uff09\u3002\n*   **\u76ee\u6807\u5b9a\u4f4d\u66f4\u51c6**\uff1a\u5728\u519b\u4e8b\u4fa6\u5bdf\u3001\u7cbe\u51c6\u519c\u4e1a\u3001\u57ce\u5e02\u8fdd\u5efa\u76d1\u6d4b\u4e2d\u975e\u5e38\u91cd\u8981\u3002\n\n**\u9ad8\u5206\u8fa8\u7387\u7684\u5c40\u9650\u6027\u4e0e\u6311\u6218\uff1a**\n1.  **\u6570\u636e\u91cf\u5de8\u5927**\uff1a\u5206\u8fa8\u7387\u63d0\u9ad8\u5bfc\u81f4\u50cf\u7d20\u6570\u91cf\u5448\u5e73\u65b9\u7ea7\u589e\u957f\uff0c\u6570\u636e\u5b58\u50a8\u3001\u4f20\u8f93\u548c\u5904\u7406\u6210\u672c\u6025\u5267\u4e0a\u5347\u3002\n2.  **\u89c6\u573a\u89d2\uff08\u8986\u76d6\u8303\u56f4\uff09\u53d8\u5c0f**\uff1a\u9ad8\u5206\u8fa8\u7387\u901a\u5e38\u610f\u5473\u7740\u5355\u666f\u5f71\u50cf\u8986\u76d6\u7684\u5730\u9762\u9762\u79ef\u53d8\u5c0f\u3002\u8981\u76d1\u6d4b\u4e00\u4e2a\u5927\u533a\u57df\uff08\u5982\u4e00\u4e2a\u7701\u6216\u4e00\u4e2a\u56fd\u5bb6\uff09\uff0c\u9700\u8981\u62cd\u6444\u6210\u5343\u4e0a\u4e07\u666f\u56fe\u50cf\uff0c mosaicking\uff08\u62fc\u63a5\uff09\u96be\u5ea6\u5927\u4e14\u8017\u65f6\u3002\n3.  **\u9634\u5f71\u4e0e\u906e\u6321\u6548\u5e94\u589e\u5f3a**\uff1a\u5728\u57ce\u5e02\u73af\u5883\u4e2d\uff0c\u6781\u9ad8\u5206\u8fa8\u7387\u4f1a\u66b4\u9732\u51fa\u5efa\u7b51\u7269\u4fa7\u9762\u7684\u9634\u5f71\u548c\u590d\u6742\u906e\u6321\uff0c\u53cd\u800c\u53ef\u80fd\u5e72\u6270\u67d0\u4e9b\u81ea\u52a8\u5316\u8bc6\u522b\u7b97\u6cd5\u3002\n4.  **\u6210\u672c\u9ad8\u6602**\uff1a\u8d85\u9ad8\u5206\u8fa8\u7387\u536b\u661f\u6216\u822a\u7a7a\u5f71\u50cf\u7684\u83b7\u53d6\u6210\u672c\u8fdc\u9ad8\u4e8e\u4e2d\u4f4e\u5206\u8fa8\u7387\u6570\u636e\u3002\n5.  **\u4fe1\u606f\u5197\u4f59**\uff1a\u5bf9\u4e8e\u5b8f\u89c2\u8d8b\u52bf\u5206\u6790\uff08\u5982\u68ee\u6797\u8986\u76d6\u7387\u53d8\u5316\u3001\u57ce\u5e02\u6269\u5f20\u901f\u7387\uff09\uff0c\u4e2d\u7b49\u5206\u8fa8\u7387\uff08\u5982 10\u7c73-30\u7c73\uff09\u5f80\u5f80\u8db3\u591f\uff0c\u66f4\u9ad8\u5206\u8fa8\u7387\u5e26\u6765\u7684\u8fb9\u9645\u6548\u76ca\u5f88\u4f4e\uff0c\u4f46\u6210\u672c\u6781\u9ad8\u3002\n\n**\u7ed3\u8bba\uff1a**\n*   **\u5fae\u89c2/\u7ec6\u8282\u9700\u6c42**\uff08\u5982\u8f66\u724c\u8bc6\u522b\u3001\u8fdd\u5efa\u6838\u67e5\u3001\u7cbe\u51c6\u519c\u4e1a\u65bd\u80a5\uff09\uff1a**\u9700\u8981\u9ad8\u5206\u8fa8\u7387**\u3002\n*   **\u5b8f\u89c2/\u8d8b\u52bf\u9700\u6c42**\uff08\u5982\u571f\u5730\u5229\u7528\u5206\u7c7b\u3001\u707e\u5bb3\u5927\u8303\u56f4\u8bc4\u4f30\u3001\u6c14\u5019\u53d8\u5316\u7814\u7a76\uff09\uff1a**\u4e2d\u4f4e\u5206\u8fa8\u7387**\u5f80\u5f80\u66f4\u5177\u6027\u4ef7\u6bd4\u548c\u6548\u7387\u3002\n\n\u9009\u62e9\u5206\u8fa8\u7387\u65f6\u5e94\u9075\u5faa\u201c**\u591f\u7528\u5373\u53ef**\u201d\u7684\u539f\u5219\uff0c\u5e73\u8861\u7cbe\u5ea6\u3001\u8986\u76d6\u8303\u56f4\u3001\u6210\u672c\u548c\u5904\u7406\u6548\u7387\u3002"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u8fd9\u662f\u4e00\u4e2a\u5173\u4e8e\u9065\u611f\u57fa\u672c\u6982\u5ff5\u548c\u6280\u672f\u539f\u7406\u7684\u95ee\u9898\uff0c\u4e0d\u5c5e\u4e8e\u5bf9\u7279\u5b9a\u5730\u533a\u53d1\u5c55\u6216\u89c4\u5212\u7684\u5206\u6790\uff0c\u56e0\u6b64\u65e0\u6cd5\u8c03\u7528\u6280\u80fd\u3002\u4ee5\u4e0b\u662f\u9488\u5bf9\u60a8\u95ee\u9898\u7684\u89e3\u7b54\uff1a\\n\\n### 1. \u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\\n\\n\u8fd9\u4e24\u79cd\u9065\u611f\u6280\u672f\u7684\u4e3b\u8981\u533a\u522b\u5728\u4e8e**\u5de5\u4f5c\u6ce2\u6bb5**\u3001**\u6210\u50cf\u673a\u7406**\u4ee5\u53ca**\u53d7\u73af\u5883\u5f71\u54cd\u7684\u80fd\u529b**\uff1a\\n\\n*   **\u5de5\u4f5c\u6ce2\u6bb5\u4e0e\u80fd\u91cf\u6765\u6e90**\uff1a\\n    *   **\u5149\u5b66\u9065\u611f**\uff08Optical Remote Sensing\uff09\uff1a\u4e3b\u8981\u5229\u7528\u53ef\u89c1\u5149\u3001\u8fd1\u7ea2'"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-7-plan-pathA-explicit-years-old_skill-run-1", "prompt": "\u8bf7\u4f60\u6839\u636e2020\u548c2025\u7684\u536b\u661f\u53d8\u5316\u56fe\uff0c\u4ecb\u7ecd\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u8fd1\u51e0\u5e74\u7684\u53d1\u5c55", "eval_id": 7, "outputs": [{"name": "task_plan.md", "type": "text", "content": "```json\n{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u83b7\u53d6\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u5728[2020, 2025]\u7684\u536b\u661f\u5f71\u50cf\",\n      \"years\": [\n        2020,\n        2025\n      ],\n      \"agent\": \"image_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u5b98\u65b9\u89c4\u5212\u4e0e\u5efa\u8bbe\u603b\u4f53\u5e03\u5c40\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u5b98\u65b9\u89c4\u5212 \u603b\u4f53\u5e03\u5c40\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u91cd\u70b9\u5efa\u8bbe\u9879\u76ee\u8fdb\u5c55\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u5efa\u8bbe\u9879\u76ee \u8fdb\u5c55 \u7ae3\u5de5\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u914d\u5957\u8bbe\u65bd\uff08\u5bbf\u820d/\u98df\u5802/\u4f53\u80b2\uff09\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u914d\u5957\u8bbe\u65bd \u5bbf\u820d \u98df\u5802 \u4f53\u80b2\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 5,\n      \"description\": \"\u7efc\u5408\u536b\u661f\u5f71\u50cf\u4e0e\u641c\u7d22\u62a5\u544a\uff0c\u8f93\u51fa\u6700\u7ec8\u5206\u6790\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a\",\n    \"years\": [\n      2020,\n      2025\n    ],\n    \"needs_image\": true,\n    \"intent\": \"\u7a7a\u95f4\u5f62\u6001\u53d8\u5316 / \u6574\u4f53\u53d1\u5c55\u8bc4\u4f30\"\n  },\n  \"reasoning\": \"\u7528\u6237\u660e\u786e\u8981\u6c42\u57fa\u4e8e2020\u548c2025\u5e74\u7684\u536b\u661f\u53d8\u5316\u56fe\u5206\u6790\u53d1\u5c55\uff0c\u6d89\u53ca\u591a\u5e74\u5ea6\u7a7a\u95f4\u5bf9\u6bd4\uff0c\u56e0\u6b64\u5fc5\u987b\u9009\u62e9\u8def\u5f84A\uff08\u5b8c\u6574\u5206\u6790\uff0c\u542b\u536b\u661f\u5f71\u50cf\uff09\u3002\u4efb\u52a1\u987a\u5e8f\u4e3a\u5148\u83b7\u53d6\u5f71\u50cf\uff0c\u518d\u9488\u5bf9\u2018\u89c4\u5212\u5e03\u5c40\u2019\u3001\u2018\u5efa\u8bbe\u8fdb\u5c55\u2019\u3001\u2018\u914d\u5957\u8bbe\u65bd\u2019\u4e09\u4e2a\u89d2\u5ea6\u8fdb\u884c\u641c\u7d22\uff0c\u6700\u540e\u7531analysis_agent\u878d\u5408\u5f71\u50cf\u4e0e\u6587\u672c\u4fe1\u606f\u8f93\u51fa\u62a5\u544a\u3002\"\n}\n```"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}, {"text": "image_agent years=[2020, 2025]", "passed": true, "evidence": "\u5b9e\u9645 years=[2020, 2025], \u671f\u671b=[2020, 2025]"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-7-plan-pathA-explicit-years-with_skill-run-1", "prompt": "\u8bf7\u4f60\u6839\u636e2020\u548c2025\u7684\u536b\u661f\u53d8\u5316\u56fe\uff0c\u4ecb\u7ecd\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u8fd1\u51e0\u5e74\u7684\u53d1\u5c55", "eval_id": 7, "outputs": [{"name": "task_plan.md", "type": "text", "content": "```json\n{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u83b7\u53d6\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u5728[2020, 2025]\u7684\u536b\u661f\u5f71\u50cf\",\n      \"years\": [2020, 2025],\n      \"agent\": \"image_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u5b98\u65b9\u89c4\u5212\u4e0e\u603b\u4f53\u5efa\u8bbe\u5e03\u5c40\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u5b98\u65b9\u89c4\u5212 \u603b\u4f53\u5e03\u5c40\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u8fd1\u671f\u91cd\u70b9\u5efa\u8bbe\u9879\u76ee\u8fdb\u5c55\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u5efa\u8bbe\u9879\u76ee \u8fdb\u5c55 \u7ae3\u5de5\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u914d\u5957\u8bbe\u65bd\u53ca\u5e08\u751f\u8bc4\u4ef7\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u914d\u5957\u8bbe\u65bd \u5e08\u751f\u8bc4\u4ef7\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 5,\n      \"description\": \"\u7efc\u5408\u536b\u661f\u5f71\u50cf\u4e0e\u641c\u7d22\u62a5\u544a\uff0c\u8f93\u51fa\u6700\u7ec8\u5206\u6790\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u5317\u4eac\u90ae\u7535\u5927\u5b66\u6c99\u6cb3\u6821\u533a\",\n    \"years\": [\n      2020,\n      2025\n    ],\n    \"needs_image\": true,\n    \"intent\": \"\u7a7a\u95f4\u5f62\u6001\u53d8\u5316\u4e0e\u6574\u4f53\u53d1\u5c55\u8bc4\u4f30\"\n  },\n  \"reasoning\": \"\u7528\u6237\u660e\u786e\u8981\u6c42\u5bf9\u6bd42020\u548c2025\u5e74\u7684\u536b\u661f\u53d8\u5316\u56fe\uff0c\u5e76\u8be2\u95ee\u53d1\u5c55\u60c5\u51b5\uff0c\u5c5e\u4e8e\u5178\u578b\u7684\u7a7a\u95f4\u5f62\u6001\u53d8\u5316\u5206\u6790\uff0c\u56e0\u6b64\u5fc5\u987b\u8c03\u7528image_agent\u83b7\u53d6\u536b\u661f\u5f71\u50cf\u3002\u641c\u7d22\u89d2\u5ea6\u9009\u53d6\u4e86\u5b98\u65b9\u89c4\u5212\u3001\u9879\u76ee\u8fdb\u5c55\u548c\u914d\u5957\u8bbe\u65bd\uff0c\u4ee5\u5168\u9762\u8986\u76d6\u6821\u533a\u5efa\u8bbe\u4e0e\u53d1\u5c55\u5185\u5bb9\u3002\u4efb\u52a1\u987a\u5e8f\u9075\u5faa\u5148\u5f71\u50cf\u540e\u641c\u7d22\u518d\u7efc\u5408\u7684\u5206\u6790\u903b\u8f91\u3002\"\n}\n```"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}, {"text": "image_agent years=[2020, 2025]", "passed": true, "evidence": "\u5b9e\u9645 years=[2020, 2025], \u671f\u671b=[2020, 2025]"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-8-plan-pathA-default-years-old_skill-run-1", "prompt": "\u96c4\u5b89\u65b0\u533a\u8fd9\u51e0\u5e74\u5efa\u8bbe\u5f97\u600e\u4e48\u6837\u4e86\uff1f\u6211\u60f3\u770b\u770b\u7a7a\u95f4\u4e0a\u7684\u53d8\u5316", "eval_id": 8, "outputs": [{"name": "task_plan.md", "type": "text", "content": "{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u83b7\u53d6\u96c4\u5b89\u65b0\u533a\u5728[2021, 2022, 2023, 2024, 2025, 2026]\u7684\u536b\u661f\u5f71\u50cf\",\n      \"years\": [2021, 2022, 2023, 2024, 2025, 2026],\n      \"agent\": \"image_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u5b98\u65b9\u603b\u4f53\u89c4\u5212\u4e0e\u5efa\u8bbe\u8fdb\u5ea6\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u603b\u4f53\u89c4\u5212 \u5efa\u8bbe\u8fdb\u5ea6 2024 2025\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u91cd\u70b9\u57fa\u7840\u8bbe\u65bd\u4e0e\u516c\u5171\u670d\u52a1\u914d\u5957\u5efa\u8bbe\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u57fa\u7840\u8bbe\u65bd \u516c\u5171\u670d\u52a1 \u5efa\u8bbe\u6210\u679c\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u4ea7\u4e1a\u5bfc\u5165\u4e0e\u4eba\u53e3\u5f15\u5165\u60c5\u51b5\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u4ea7\u4e1a\u843d\u5730 \u4f01\u4e1a\u5165\u9a7b \u4eba\u53e3\u805a\u96c6\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 5,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u8fd1\u671f\u91cd\u5927\u5de5\u7a0b\u9879\u76ee\u4e0e\u5a92\u4f53\u62a5\u9053\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u91cd\u5927\u9879\u76ee \u7ae3\u5de5 \u5a92\u4f53\u8bc4\u4ef7\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 6,\n      \"description\": \"\u7efc\u5408\u536b\u661f\u5f71\u50cf\u4e0e\u641c\u7d22\u62a5\u544a\uff0c\u8f93\u51fa\u6700\u7ec8\u5206\u6790\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u96c4\u5b89\u65b0\u533a\",\n    \"years\": [2021, 2022, 2023, 2024, 2025, 2026],\n    \"needs_image\": true,\n    \"intent\": \"\u5206\u6790\u96c4\u5b89\u65b0\u533a\u7a7a\u95f4\u5f62\u6001\u53d8\u5316\u53ca\u6574\u4f53\u5efa\u8bbe\u8fdb\u5c55\"\n  },\n  \"reasoning\": \"\u7528\u6237\u5173\u6ce8\u96c4\u5b89\u65b0\u533a\u7684\u7a7a\u95f4\u53d8\u5316\u548c\u5efa\u8bbe\u60c5\u51b5\uff0c\u4e14\u660e\u786e\u63d0\u5230\u60f3\u770b\u7a7a\u95f4\u53d8\u5316\uff0c\u56e0\u6b64\u9700\u8981\u536b\u661f\u5f71\u50cf\u8fdb\u884c\u89c6\u89c9\u5bf9\u6bd4\u3002\u9ed8\u8ba4\u53d6\u8fd16\u5e74\uff082021-2026\uff09\u4ee5\u8986\u76d6\u4e3b\u8981\u5efa\u8bbe\u671f\u3002\u641c\u7d22\u89d2\u5ea6\u6db5\u76d6\u603b\u4f53\u89c4\u5212\u3001\u57fa\u7840\u8bbe\u65bd\u914d\u5957\u3001\u4ea7\u4e1a\u4eba\u53e3\u5bfc\u5165\u53ca\u8fd1\u671f\u91cd\u5927\u5de5\u7a0b\uff0c\u4ee5\u5168\u9762\u8bc4\u4f30\u5efa\u8bbe\u6210\u6548\u3002\u8def\u5f84\u9009\u62e9\u4e3a\u8def\u5f84A\uff08\u542b\u536b\u661f\u5f71\u50cf\uff09\u3002\"\n}"}], "grading": {"summary": {"pass_rate": 0.8, "passed": 4, "failed": 1, "total": 5}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=6 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=4"}, {"text": "image_agent years=[2021, 2026]", "passed": false, "evidence": "\u5b9e\u9645 years=[2021, 2022, 2023, 2024, 2025, 2026], \u671f\u671b=[2021, 2026]"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-8-plan-pathA-default-years-with_skill-run-1", "prompt": "\u96c4\u5b89\u65b0\u533a\u8fd9\u51e0\u5e74\u5efa\u8bbe\u5f97\u600e\u4e48\u6837\u4e86\uff1f\u6211\u60f3\u770b\u770b\u7a7a\u95f4\u4e0a\u7684\u53d8\u5316", "eval_id": 8, "outputs": [{"name": "task_plan.md", "type": "text", "content": "```json\n{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u83b7\u53d6\u96c4\u5b89\u65b0\u533a\u5728[2021, 2026]\u7684\u536b\u661f\u5f71\u50cf\",\n      \"years\": [\n        2021,\n        2026\n      ],\n      \"agent\": \"image_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u6574\u4f53\u7a7a\u95f4\u5f62\u6001\u6f14\u53d8\u4e0e\u57ce\u5e02\u5efa\u8bbe\u8fdb\u5c55\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u7a7a\u95f4\u6f14\u53d8 \u57ce\u5e02\u5efa\u8bbe 2021-2026\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u6838\u5fc3\u7247\u533a\uff08\u5982\u542f\u52a8\u533a\u3001\u5bb9\u4e1c\uff09\u5efa\u8bbe\u6210\u679c\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u542f\u52a8\u533a \u5bb9\u4e1c\u7247\u533a \u5efa\u8bbe\u6210\u679c \u4ea4\u4ed8\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u57fa\u7840\u8bbe\u65bd\u914d\u5957\u4e0e\u751f\u6001\u5efa\u8bbe\u60c5\u51b5\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u57fa\u7840\u8bbe\u65bd \u751f\u6001\u5efa\u8bbe \u914d\u5957\u5b8c\u5584\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 5,\n      \"description\": \"\u7efc\u5408\u536b\u661f\u5f71\u50cf\u4e0e\u641c\u7d22\u62a5\u544a\uff0c\u8f93\u51fa\u6700\u7ec8\u5206\u6790\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u96c4\u5b89\u65b0\u533a\",\n    \"years\": [\n      2021,\n      2026\n    ],\n    \"needs_image\": true,\n    \"intent\": \"\u7a7a\u95f4\u5f62\u6001\u53d8\u5316\u8bc4\u4f30\"\n  },\n  \"reasoning\": \"\u7528\u6237\u5173\u6ce8\u96c4\u5b89\u65b0\u533a\u7684\u7a7a\u95f4\u53d8\u5316\uff0c\u660e\u786e\u9700\u8981\u5bf9\u6bd4\u5efa\u8bbe\u6210\u679c\u3002\u6839\u636e\u89c4\u5219\uff0c\u672a\u63d0\u53ca\u5e74\u4efd\u53d6[2021, 2026]\u3002\u56e0\u6d89\u53ca\u7a7a\u95f4\u53d8\u5316\u5bf9\u6bd4\uff0c\u9700\u8c03\u7528image_agent\u83b7\u53d6\u536b\u661f\u5f71\u50cf\u3002\u968f\u540e\u901a\u8fc7search_agent\u5206\u522b\u4ece\u6574\u4f53\u6f14\u53d8\u3001\u6838\u5fc3\u7247\u533a\u5efa\u8bbe\u3001\u57fa\u7840\u8bbe\u65bd\u914d\u5957\u4e09\u4e2a\u89d2\u5ea6\u6536\u96c6\u6587\u672c\u4fe1\u606f\uff0c\u6700\u540e\u7531analysis_agent\u878d\u5408\u5f71\u50cf\u4e0e\u6587\u672c\u8fdb\u884c\u7efc\u5408\u8bc4\u4f30\u3002\"\n}\n```"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}, {"text": "image_agent years=[2021, 2026]", "passed": true, "evidence": "\u5b9e\u9645 years=[2021, 2026], \u671f\u671b=[2021, 2026]"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-9-plan-pathB-pure-research-old_skill-run-1", "prompt": "\u5e2e\u6211\u68b3\u7406\u4e00\u4e0b\u96c4\u5b89\u65b0\u533a\u7684\u603b\u4f53\u89c4\u5212\u548c\u4e3b\u8981\u653f\u7b56\u6587\u4ef6\uff0c\u4e0d\u7528\u770b\u536b\u661f\u56fe", "eval_id": 9, "outputs": [{"name": "task_plan.md", "type": "text", "content": "```json\n{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\u6838\u5fc3\u5185\u5bb9\u53ca\u653f\u7b56\u6279\u590d\u6587\u4ef6\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212 \u653f\u7b56\u6587\u4ef6 \u6279\u590d\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u91cd\u70b9\u5efa\u8bbe\u8fdb\u5c55\u4e0e\u4ea7\u4e1a\u5bfc\u5165\u60c5\u51b5\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u91cd\u70b9\u5efa\u8bbe \u4ea7\u4e1a\u5bfc\u5165 \u8fdb\u5c55\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u7efc\u5408\u641c\u7d22\u62a5\u544a\uff0c\u68b3\u7406\u96c4\u5b89\u65b0\u533a\u653f\u7b56\u4f53\u7cfb\u4e0e\u53d1\u5c55\u8109\u7edc\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u96c4\u5b89\u65b0\u533a\",\n    \"years\": [\n      2021,\n      2026\n    ],\n    \"needs_image\": false,\n    \"intent\": \"\u653f\u7b56\u89c4\u5212\u89e3\u8bfb\u4e0e\u603b\u4f53\u53d1\u5c55\u68b3\u7406\"\n  },\n  \"reasoning\": \"\u7528\u6237\u660e\u786e\u8981\u6c42\u68b3\u7406\u96c4\u5b89\u65b0\u533a\u7684\u603b\u4f53\u89c4\u5212\u548c\u653f\u7b56\u6587\u4ef6\uff0c\u4e14\u6307\u5b9a'\u4e0d\u7528\u770b\u536b\u661f\u56fe'\uff0c\u56e0\u6b64\u9009\u62e9\u8def\u5f84B\uff08\u7eaf\u4fe1\u606f\u7814\u7a76\uff09\u3002\u4efb\u52a1\u5305\u62ec\uff1a1. \u641c\u7d22\u6838\u5fc3\u89c4\u5212\u4e0e\u653f\u7b56\u6587\u672c\uff1b2. \u641c\u7d22\u5efa\u8bbe\u8fdb\u5c55\u4e0e\u4ea7\u4e1a\u60c5\u51b5\u4ee5\u4e30\u5bcc\u5185\u5bb9\u7ef4\u5ea6\uff1b3. \u7531analysis_agent\u7efc\u5408\u751f\u6210\u6700\u7ec8\u62a5\u544a\u3002\"\n}\n```"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 4, "failed": 0, "total": 4}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=3 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 0\uff0c\u8def\u5f84B\uff09", "passed": true, "evidence": "image_agent=0, \u671f\u671b=0"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=2"}], "timing": {"total_duration_seconds": 0.0}}}, {"id": "eval-9-plan-pathB-pure-research-with_skill-run-1", "prompt": "\u5e2e\u6211\u68b3\u7406\u4e00\u4e0b\u96c4\u5b89\u65b0\u533a\u7684\u603b\u4f53\u89c4\u5212\u548c\u4e3b\u8981\u653f\u7b56\u6587\u4ef6\uff0c\u4e0d\u7528\u770b\u536b\u661f\u56fe", "eval_id": 9, "outputs": [{"name": "task_plan.md", "type": "text", "content": "```json\n{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\u53ca\u6838\u5fc3\u653f\u7b56\u6587\u4ef6\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212 \u653f\u7b56\u6587\u4ef6\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u91cd\u70b9\u7247\u533a\u89c4\u5212\u4e0e\u5efa\u8bbe\u8fdb\u5c55\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u91cd\u70b9\u7247\u533a \u5efa\u8bbe\u8fdb\u5c55\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u4ea7\u4e1a\u5f15\u5165\u4e0e\u521b\u65b0\u53d1\u5c55\u653f\u7b56\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u4ea7\u4e1a \u521b\u65b0\u53d1\u5c55 \u653f\u7b56\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u7efc\u5408\u653f\u7b56\u4e0e\u89c4\u5212\u4fe1\u606f\uff0c\u8f93\u51fa\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u53d1\u5c55\u4e0e\u653f\u7b56\u68b3\u7406\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u96c4\u5b89\u65b0\u533a\",\n    \"years\": [\n      2021,\n      2026\n    ],\n    \"needs_image\": false,\n    \"intent\": \"\u68b3\u7406\u96c4\u5b89\u65b0\u533a\u7684\u603b\u4f53\u89c4\u5212\u548c\u4e3b\u8981\u653f\u7b56\u6587\u4ef6\"\n  },\n  \"reasoning\": \"\u7528\u6237\u660e\u786e\u8981\u6c42\u68b3\u7406\u96c4\u5b89\u65b0\u533a\u7684\u603b\u89c4\u548c\u653f\u7b56\uff0c\u4e14\u6307\u5b9a\u4e0d\u9700\u8981\u536b\u661f\u56fe\u3002\u56e0\u6b64\u9009\u62e9\u8def\u5f84B\uff08\u7eaf\u4fe1\u606f\u7814\u7a76\uff09\u3002\u4efb\u52a1\u987a\u5e8f\u4e3a\u5148\u641c\u7d22\u603b\u4f53\u89c4\u5212\u4e0e\u6838\u5fc3\u653f\u7b56\uff0c\u518d\u641c\u7d22\u91cd\u70b9\u7247\u533a\u4e0e\u5efa\u8bbe\u8fdb\u5c55\uff0c\u6700\u540e\u641c\u7d22\u4ea7\u4e1a\u4e0e\u521b\u65b0\u653f\u7b56\uff0c\u6700\u540e\u7531analysis_agent\u7efc\u5408\u6240\u6709\u641c\u7d22\u62a5\u544a\u751f\u6210\u6700\u7ec8\u5206\u6790\u3002\"\n}\n```"}], "grading": {"summary": {"pass_rate": 1.0, "passed": 4, "failed": 0, "total": 4}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=4 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 0\uff0c\u8def\u5f84B\uff09", "passed": true, "evidence": "image_agent=0, \u671f\u671b=0"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}], "timing": {"total_duration_seconds": 0.0}}}], "previous_feedback": {}, "previous_outputs": {"eval-1-route-pathA-explicit-years-with_skill-run-1": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"remote-sensing-analysis\"}"}], "eval-2-route-pathA-default-years-with_skill-run-1": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"remote-sensing-analysis\"}"}], "eval-3-route-pathB-pure-research-with_skill-run-1": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"policy-document-analysis\"}"}], "eval-4-route-notrigger-city-year-fact-with_skill-run-1": [{"name": "decision.md", "type": "text", "content": "{\"skill\": \"remote-sensing-analysis\"}"}], "eval-5-route-notrigger-city-restaurant-with_skill-run-1": [{"name": "decision.md", "type": "text", "content": "\u6b22\u8fce\u6765\u4e0a\u6d77\u51fa\u5dee\uff01\u9646\u5bb6\u5634\u5730\u533a\u6709\u4e0d\u5c11\u5730\u9053\u7684\u672c\u5e2e\u83dc\u9009\u62e9\uff0c\u4ee5\u4e0b\u4e3a\u60a8\u63a8\u8350\u51e0\u5bb6\u53e3\u7891\u8f83\u597d\u7684\u9910\u5385\uff1a\n\n1.  **\u4e0a\u6d77\u4eba\u5bb6\uff08\u9646\u5bb6\u5634\u5e97\uff09**\n    *   **\u7279\u70b9**\uff1a\u8001\u724c\u672c\u5e2e\u83dc\uff0c\u73af\u5883\u53e4\u6734\u96c5\u81f4\uff0c\u9002\u5408\u5546\u52a1\u5bb4\u8bf7\u6216\u5bb6\u5ead\u805a\u9910\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u8349\u5934\u5708\u5b50\u3001\u516b\u5b9d\u9e2d\u3001\u7ea2\u70e7\u8089\u3001\u54cd\u6cb9\u9cdd\u4e1d\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u94f6\u57ce\u4e2d\u8def168\u53f7\uff08\u8fd1\u6b63\u5927\u5e7f\u573a\uff09\u3002\n\n2.  **\u798f\u548c\u6167\uff08Fuhewei\uff09**\n    *   **\u7279\u70b9**\uff1a\u7c73\u5176\u6797\u4e00\u661f\u7d20\u98df\u9910\u5385\uff0c\u4f46\u63d0\u4f9b\u6781\u5177\u521b\u610f\u7684\u672c\u5e2e\u98ce\u5473\u7d20\u98df\uff0c\u7cbe\u81f4\u9ad8\u96c5\uff0c\u9700\u8981\u63d0\u524d\u9884\u8ba2\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u521b\u610f\u7d20\u5bb4\u5957\u9910\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u6d66\u57ce\u8def390\u53f7\u3002\n\n3.  **\u8001\u6b63\u5174\u83dc\u9986\uff08\u6d66\u4e1c\u5e97\uff09**\n    *   **\u7279\u70b9**\uff1a\u4e2d\u534e\u8001\u5b57\u53f7\uff0c\u4ee5\u4f20\u7edf\u4e0a\u6d77\u83dc\u95fb\u540d\uff0c\u5473\u9053\u6b63\u5b97\uff0c\u6027\u4ef7\u6bd4\u9ad8\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u867e\u7c7d\u5927\u4e4c\u53c2\u3001\u6e05\u7092\u6cb3\u867e\u4ec1\u3001\u6cb9\u7206\u867e\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u6d66\u4e1c\u5357\u8def256\u53f7\u3002\n\n4.  **\u9f0e\u6cf0\u4e30\uff08\u9646\u5bb6\u5634\u4e2d\u5fc3\u5e97\uff09**\n    *   **\u7279\u70b9**\uff1a\u867d\u7136\u4ee5\u5c0f\u7b3c\u5305\u95fb\u540d\uff0c\u4f46\u5176\u4e0a\u6d77\u672c\u5e2e\u83dc\u5982\u7ea2\u70e7\u8089\u3001\u7ea2\u70e7\u725b\u8089\u7b49\u4e5f\u975e\u5e38\u51fa\u8272\uff0c\u670d\u52a1\u6807\u51c6\u5316\uff0c\u9002\u5408\u5feb\u901f\u7528\u9910\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u5c0f\u7b3c\u5305\u3001\u7ea2\u70e7\u8089\u3001\u87f9\u7c89\u5c0f\u7b3c\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u94f6\u57ce\u4e2d\u8def501\u53f7\u4e0a\u6d77\u4e2d\u5fc3\u5927\u53a63\u697c\u3002\n\n5.  **\u82cf\u6d59\u6c47\uff08\u9646\u5bb6\u5634\u5e97\uff09**\n    *   **\u7279\u70b9**\uff1a\u4e3b\u6253\u6c5f\u6d59\u83dc\uff0c\u53e3\u5473\u6e05\u6de1\u7cbe\u81f4\uff0c\u672c\u5e2e\u83dc\u4e5f\u6709\u4e0d\u9519\u8868\u73b0\uff0c\u73af\u5883\u8212\u9002\u3002\n    *   **\u63a8\u8350\u83dc**\uff1a\u4e1c\u5761\u8089\u3001\u897f\u6e56\u918b\u9c7c\u3001\u677e\u9f20\u6842\u9c7c\u3002\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u9646\u5bb6\u5634\u73af\u8def1088\u53f7\u3002\n\n**\u6e29\u99a8\u63d0\u793a**\uff1a\n*   \u90e8\u5206\u70ed\u95e8\u9910\u5385\u53ef\u80fd\u9700\u8981\u63d0\u524d\u9884\u8ba2\uff0c\u5efa\u8bae\u60a8\u51fa\u884c\u524d\u7535\u8bdd\u786e\u8ba4\u3002\n*   \u672c\u5e2e\u83dc\u53e3\u5473\u504f\u751c\uff0c\u5982\u679c\u4e0d\u4e60\u60ef\u592a\u751c\uff0c\u70b9\u9910\u65f6\u53ef\u4ee5\u544a\u77e5\u670d\u52a1\u5458\u8c03\u6574\u751c\u5ea6\u3002\n\n\u795d\u60a8\u51fa\u5dee\u987a\u5229\uff0c\u7528\u9910\u6109\u5feb\uff01"}], "eval-6-route-notrigger-rs-concept-with_skill-run-1": [{"name": "decision.md", "type": "text", "content": "{\n  \"skill\": \"remote-sensing-analysis\"\n}"}], "eval-7-plan-pathA-explicit-years-with_skill-run-1": [{"name": "task_plan.md", "type": "text", "content": "{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u83b7\u53d6\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u5728[2020, 2025]\u7684\u536b\u661f\u5f71\u50cf\",\n      \"years\": [2020, 2025],\n      \"agent\": \"image_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u5b98\u65b9\u89c4\u5212\u4e0e\u5efa\u8bbe\u603b\u4f53\u5e03\u5c40\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u5b98\u65b9\u89c4\u5212 \u603b\u4f53\u5e03\u5c40\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u91cd\u70b9\u5efa\u8bbe\u9879\u76ee\u8fdb\u5c55\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u5efa\u8bbe\u9879\u76ee \u8fdb\u5c55 \u7ae3\u5de5\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u914d\u5957\u8bbe\u65bd\uff08\u5bbf\u820d/\u98df\u5802/\u4f53\u80b2\uff09\",\n      \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a \u914d\u5957\u8bbe\u65bd \u5bbf\u820d \u98df\u5802\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 5,\n      \"description\": \"\u7efc\u5408\u536b\u661f\u5f71\u50cf\u4e0e\u641c\u7d22\u62a5\u544a\uff0c\u8f93\u51fa\u6700\u7ec8\u5206\u6790\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a\",\n    \"years\": [2020, 2025],\n    \"needs_image\": true,\n    \"intent\": \"\u7a7a\u95f4\u5f62\u6001\u53d8\u5316\u4e0e\u6574\u4f53\u53d1\u5c55\u8bc4\u4f30\"\n  },\n  \"reasoning\": \"\u7528\u6237\u660e\u786e\u63d0\u5230\u9700\u8981\u201c2020\u548c2025\u7684\u536b\u661f\u53d8\u5316\u56fe\u201d\u6765\u4ecb\u7ecd\u201c\u53d1\u5c55\u201d\uff0c\u6ee1\u8db3\u5305\u542b\u536b\u661f\u5f71\u50cf\u7684\u6761\u4ef6\u3002\u56e0\u6b64\u9009\u62e9\u8def\u5f84A\uff08\u5b8c\u6574\u5206\u6790\uff09\u3002\u9996\u5148\u901a\u8fc7image_agent\u83b7\u53d6\u4e24\u5e74\u4efd\u7684\u536b\u661f\u5f71\u50cf\u4ee5\u76f4\u89c2\u5c55\u793a\u7a7a\u95f4\u53d8\u5316\uff1b\u968f\u540e\u901a\u8fc73\u6b21search_agent\u5206\u522b\u4ece\u5b98\u65b9\u89c4\u5212\u3001\u5efa\u8bbe\u8fdb\u5c55\u548c\u914d\u5957\u8bbe\u65bd\u4e09\u4e2a\u89d2\u5ea6\u641c\u96c6\u6587\u5b57\u4fe1\u606f\uff0c\u4ee5\u8f85\u52a9\u89e3\u8bfb\u5f71\u50cf\u53d8\u5316\u7684\u5177\u4f53\u5185\u6db5\uff1b\u6700\u540e\u7531analysis_agent\u878d\u5408\u5f71\u50cf\u4e0e\u6587\u672c\u4fe1\u606f\u8f93\u51fa\u7efc\u5408\u62a5\u544a\u3002\"\n}"}], "eval-7-plan-pathA-explicit-years-without_skill-run-1": [{"name": "task_plan.md", "type": "text", "content": "{\n  \"task_list\": [\n    {\n      \"task_id\": 1,\n      \"agent\": \"image_agent\",\n      \"description\": \"\u83b7\u53d6\u5317\u4eac\u90ae\u7535\u5927\u5b66\u6c99\u6cb3\u6821\u533a2020\u5e74\u7684\u536b\u661f\u5f71\u50cf\",\n      \"parameters\": {\n        \"location\": \"\u5317\u4eac\u90ae\u7535\u5927\u5b66\u6c99\u6cb3\u6821\u533a\",\n        \"date\": \"2020-01-01\"\n      }\n    },\n    {\n      \"task_id\": 2,\n      \"agent\": \"image_agent\",\n      \"description\": \"\u83b7\u53d6\u5317\u4eac\u90ae\u7535\u5927\u5b66\u6c99\u6cb3\u6821\u533a2025\u5e74\u7684\u536b\u661f\u5f71\u50cf\",\n      \"parameters\": {\n        \"location\": \"\u5317\u4eac\u90ae\u7535\u5927\u5b66\u6c99\u6cb3\u6821\u533a\",\n        \"date\": \"2025-01-01\"\n      }\n    },\n    {\n      \"task_id\": 3,\n      \"agent\": \"search_agent\",\n      \"description\": \"\u641c\u7d22\u5317\u90ae\u6c99\u6cb3\u6821\u533a2020\u5e74\u81f32025\u5e74\u95f4\u7684\u91cd\u8981\u5efa\u8bbe\u89c4\u5212\u3001\u65b0\u5efa\u697c\u7fa4\u53ca\u79d1\u7814\u8bbe\u65bd\u843d\u6210\u65b0\u95fb\",\n      \"parameters\": {\n        \"query\": \"\u5317\u90ae\u6c99\u6cb3\u6821\u533a 2020-2025 \u5efa\u8bbe\u53d1\u5c55 \u65b0\u697c \u79d1\u7814\u8bbe\u65bd\"\n      }\n    },\n    {\n      \"task_id\": 4,\n      \"agent\": \"analysis_agent\",\n      \"description\": \"\u7ed3\u5408\u536b\u661f\u5f71\u50cf\u53d8\u5316\u4e0e\u7f51\u7edc\u641c\u7d22\u8d44\u6599\uff0c\u5206\u6790\u5317\u90ae\u6c99\u6cb3\u6821\u533a\u8fd1\u51e0\u5e74\u7684\u57fa\u7840\u8bbe\u65bd\u53d8\u5316\u53ca\u53d1\u5c55\u6982\u51b5\",\n      \"parameters\": {\n        \"input_data\": [\n          \"task_1_result\",\n          \"task_2_result\",\n          \"task_3_result\"\n        ]\n      }\n    }\n  ]\n}"}], "eval-8-plan-pathA-default-years-with_skill-run-1": [{"name": "task_plan.md", "type": "text", "content": "{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u83b7\u53d6\u96c4\u5b89\u65b0\u533a2019-2025\u5e74\u671f\u95f4\u7684\u536b\u661f\u5f71\u50cf\",\n      \"years\": [\n        2019,\n        2021,\n        2023,\n        2025\n      ],\n      \"agent\": \"image_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u57ce\u5e02\u8bbe\u8ba1\u4e0e\u6838\u5fc3\u542f\u52a8\u533a\u89c4\u5212\u5e03\u5c40\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u57ce\u5e02\u89c4\u5212 \u6838\u5fc3\u542f\u52a8\u533a \u5e03\u5c40\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u91cd\u70b9\u57fa\u7840\u8bbe\u65bd\u4e0e\u516c\u670d\u8bbe\u65bd\u5efa\u8bbe\u8fdb\u5c55\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u57fa\u7840\u8bbe\u65bd\u5efa\u8bbe \u516c\u5171\u670d\u52a1 \u8fdb\u5c55\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u751f\u6001\u5efa\u8bbe\u4e0e\u7eff\u8272\u751f\u6001\u5c4f\u969c\u53d1\u5c55\u60c5\u51b5\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u751f\u6001\u5efa\u8bbe \u7eff\u8272\u5c4f\u969c \u767d\u6d0b\u6dc0\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 5,\n      \"description\": \"\u7efc\u5408\u536b\u661f\u5f71\u50cf\u4e0e\u641c\u7d22\u62a5\u544a\uff0c\u8f93\u51fa\u6700\u7ec8\u5206\u6790\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u96c4\u5b89\u65b0\u533a\",\n    \"years\": [\n      2019,\n      2021,\n      2023,\n      2025\n    ],\n    \"needs_image\": true,\n    \"intent\": \"\u57ce\u5e02\u65b0\u533a\u7a7a\u95f4\u5f62\u6001\u6f14\u53d8\u4e0e\u5efa\u8bbe\u8fdb\u5c55\u8bc4\u4f30\"\n  },\n  \"reasoning\": \"\u7528\u6237\u660e\u786e\u8be2\u95ee'\u7a7a\u95f4\u4e0a\u7684\u53d8\u5316'\u4e14\u6d89\u53ca'\u8fd9\u51e0\u5e74'\uff0c\u7b26\u5408\u8def\u5f84A\uff08\u5b8c\u6574\u5206\u6790\uff09\u6761\u4ef6\u3002\u9700\u8c03\u7528image_agent\u83b7\u53d6\u591a\u5e74\u536b\u661f\u5f71\u50cf\u4ee5\u5bf9\u6bd4\u7a7a\u95f4\u5f62\u6001\uff1b\u540c\u65f6\u89c4\u52123\u6b21search_agent\u5206\u522b\u5173\u6ce8\u89c4\u5212\u5e03\u5c40\u3001\u57fa\u7840\u8bbe\u65bd\u548c\u751f\u6001\u73af\u5883\uff0c\u4ee5\u5168\u9762\u89e3\u8bfb\u5efa\u8bbe\u73b0\u72b6\u3002\u6700\u540e\u7531analysis_agent\u878d\u5408\u5f71\u50cf\u4e0e\u6587\u672c\u4fe1\u606f\u8f93\u51fa\u62a5\u544a\u3002\"\n}"}], "eval-8-plan-pathA-default-years-without_skill-run-1": [{"name": "task_plan.md", "type": "text", "content": "{\n  \"task_list\": [\n    {\n      \"id\": 1,\n      \"agent\": \"search_agent\",\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u8fd1\u5e74\u6765\u7684\u5b98\u65b9\u5efa\u8bbe\u8fdb\u5c55\u62a5\u544a\u3001\u91cd\u5927\u57fa\u7840\u8bbe\u65bd\u9879\u76ee\u6e05\u5355\u53ca\u89c4\u5212\u66f4\u65b0\u6587\u4ef6\uff0c\u7279\u522b\u662f\u6d89\u53ca\u7a7a\u95f4\u5e03\u5c40\u8c03\u6574\u7684\u653f\u7b56\u548c\u65b0\u95fb\u3002\",\n      \"output_key\": \"xiongan_construction_status\"\n    },\n    {\n      \"id\": 2,\n      \"agent\": \"image_agent\",\n      \"description\": \"\u83b7\u53d6\u96c4\u5b89\u65b0\u533a\u5173\u952e\u533a\u57df\uff08\u5982\u542f\u52a8\u533a\u3001\u5bb9\u4e1c\u7247\u533a\u3001\u96c4\u4e1c\u7247\u533a\uff09\u57282017\u5e74\u30012020\u5e74\u30012023\u5e74\u548c2026\u5e74\u7684\u591a\u671f\u536b\u661f\u9065\u611f\u5f71\u50cf\u6570\u636e\uff0c\u7528\u4e8e\u5bf9\u6bd4\u5730\u8868\u8986\u76d6\u53d8\u5316\u548c\u5efa\u7b51\u5bc6\u5ea6\u3002\",\n      \"output_key\": \"xiongan_satellite_images\"\n    },\n    {\n      \"id\": 3,\n      \"agent\": \"analysis_agent\",\n      \"description\": \"\u7ed3\u5408\u641c\u7d22\u5230\u7684\u5efa\u8bbe\u6587\u672c\u4fe1\u606f\u4e0e\u536b\u661f\u5f71\u50cf\u6570\u636e\uff0c\u8fdb\u884c\u7a7a\u95f4\u6f14\u53d8\u5206\u6790\u3002\u91cd\u70b9\u5bf9\u6bd4\u4e0d\u540c\u5e74\u4efd\u7684\u5efa\u6210\u533a\u9762\u79ef\u3001\u9053\u8def\u7f51\u7edc\u6269\u5c55\u60c5\u51b5\u53ca\u7eff\u5730\u6c34\u4f53\u53d8\u5316\uff0c\u5e76\u751f\u6210\u4e00\u4efd\u7efc\u5408\u5206\u6790\u62a5\u544a\uff0c\u5c55\u793a\u96c4\u5b89\u7684\u7a7a\u95f4\u53d8\u5316\u8d8b\u52bf\u3002\",\n      \"output_key\": \"spatial_change_analysis_report\"\n    }\n  ]\n}"}], "eval-9-plan-pathB-pure-research-with_skill-run-1": [{"name": "task_plan.md", "type": "text", "content": "{\n  \"tasks\": [\n    {\n      \"id\": 1,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\u53ca\u6838\u5fc3\u653f\u7b56\u6587\u4ef6\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u603b\u4f53\u89c4\u5212 \u653f\u7b56\u6587\u4ef6\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 2,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u5efa\u8bbe\u8fdb\u5c55\u4e0e\u91cd\u70b9\u9879\u76ee\u843d\u5730\u60c5\u51b5\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u5efa\u8bbe\u8fdb\u5c55 \u91cd\u70b9\u9879\u76ee\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 3,\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u4ea7\u4e1a\u5bfc\u5165\u4e0e\u4eba\u53e3\u5f15\u5165\u60c5\u51b5\",\n      \"query\": \"\u96c4\u5b89\u65b0\u533a \u4ea7\u4e1a\u5bfc\u5165 \u4eba\u53e3\u5f15\u5165\",\n      \"agent\": \"search_agent\"\n    },\n    {\n      \"id\": 4,\n      \"description\": \"\u7efc\u5408\u641c\u7d22\u7ed3\u679c\uff0c\u8f93\u51fa\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\u4e0e\u653f\u7b56\u7814\u7a76\u62a5\u544a\",\n      \"agent\": \"analysis_agent\"\n    }\n  ],\n  \"extracted\": {\n    \"location\": \"\u96c4\u5b89\u65b0\u533a\",\n    \"years\": [\n      2021,\n      2026\n    ],\n    \"needs_image\": false,\n    \"intent\": \"\u653f\u7b56\u89c4\u5212\u89e3\u8bfb\"\n  },\n  \"reasoning\": \"\u7528\u6237\u660e\u786e\u8981\u6c42\u68b3\u7406\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\u548c\u4e3b\u8981\u653f\u7b56\u6587\u4ef6\uff0c\u4e14\u6307\u5b9a\u4e0d\u4f7f\u7528\u536b\u661f\u56fe\uff0c\u56e0\u6b64\u9009\u62e9\u8def\u5f84B\uff08\u7eaf\u4fe1\u606f\u7814\u7a76\uff09\u3002\u6839\u636e\u57ce\u5e02\u5f00\u53d1/\u65b0\u533a\u610f\u56fe\uff0c\u9009\u53d6\u4e86\u5b98\u65b9\u89c4\u5212/\u653f\u7b56\u3001\u5efa\u8bbe\u8fdb\u5c55\u3001\u4ea7\u4e1a/\u4eba\u53e3\u5f15\u5165\u4e09\u4e2a\u641c\u7d22\u89d2\u5ea6\uff0c\u6700\u540e\u901a\u8fc7analysis_agent\u6574\u5408\u4fe1\u606f\u8f93\u51fa\u62a5\u544a\u3002\"\n}"}], "eval-9-plan-pathB-pure-research-without_skill-run-1": [{"name": "task_plan.md", "type": "text", "content": "{\n  \"task_list\": [\n    {\n      \"step\": 1,\n      \"agent\": \"search_agent\",\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u603b\u4f53\u89c4\u5212\uff082018-2035\u5e74\uff09\u7684\u5b98\u65b9\u53d1\u5e03\u5185\u5bb9\u3001\u6838\u5fc3\u5b9a\u4f4d\u3001\u7a7a\u95f4\u5e03\u5c40\u53ca\u4e3b\u8981\u53d1\u5c55\u76ee\u6807\u3002\",\n      \"output_key\": \"xiongan_master_plan_info\"\n    },\n    {\n      \"step\": 2,\n      \"agent\": \"search_agent\",\n      \"description\": \"\u641c\u7d22\u4e2d\u5171\u4e2d\u592e\u3001\u56fd\u52a1\u9662\u5173\u4e8e\u652f\u6301\u96c4\u5b89\u65b0\u533a\u5efa\u8bbe\u7684\u91cd\u5927\u653f\u7b56\u6587\u4ef6\uff0c\u4ee5\u53ca\u56fd\u5bb6\u90e8\u59d4\u53d1\u5e03\u7684\u914d\u5957\u4e13\u9879\u653f\u7b56\uff08\u5982\u571f\u5730\u3001\u91d1\u878d\u3001\u4eba\u624d\u5f15\u8fdb\u7b49\uff09\u3002\",\n      \"output_key\": \"policy_documents\"\n    },\n    {\n      \"step\": 3,\n      \"agent\": \"search_agent\",\n      \"description\": \"\u641c\u7d22\u96c4\u5b89\u65b0\u533a\u8fd1\u5e74\u6765\u7684\u5b9e\u65bd\u8fdb\u5c55\u3001\u8bd5\u70b9\u6539\u9769\u7ecf\u9a8c\u53ca\u6700\u65b0\u52a8\u6001\u8865\u5145\u4fe1\u606f\u3002\",\n      \"output_key\": \"recent_developments\"\n    },\n    {\n      \"step\": 4,\n      \"agent\": \"analysis_agent\",\n      \"inputs\": [\n        \"xiongan_master_plan_info\",\n        \"policy_documents\",\n        \"recent_developments\"\n      ],\n      \"description\": \"\u6574\u5408\u603b\u4f53\u89c4\u5212\u5185\u5bb9\u4e0e\u653f\u7b56\u6587\u4ef6\u8981\u70b9\uff0c\u68b3\u7406\u96c4\u5b89\u65b0\u533a\u7684\u6838\u5fc3\u89c4\u5212\u903b\u8f91\u3001\u653f\u7b56\u4f53\u7cfb\u67b6\u6784\u53ca\u5b9e\u65bd\u6210\u6548\uff0c\u751f\u6210\u7efc\u5408\u68b3\u7406\u62a5\u544a\u3002\"\n    }\n  ]\n}"}]}, "benchmark": {"metadata": {"skill_name": "remote-sensing-analysis", "skill_path": "/home/charles/mycode/skill_aicoding/xiongan_agent/skills/remote_sensing_analysis", "executor_model": "<model-name>", "analyzer_model": "<model-name>", "timestamp": "2026-07-25T18:14:49Z", "evals_run": [1, 2, 3, 4, 5, 6, 7, 8, 9], "runs_per_configuration": 3}, "runs": [{"eval_id": 1, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 0.6, "tokens": 316, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "notes": []}, {"eval_id": 2, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 0.6, "tokens": 303, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "notes": []}, {"eval_id": 3, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 0.0, "passed": 0, "failed": 1, "total": 1, "time_seconds": 11.9, "tokens": 1369, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": false, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '\u96c4\u5b89\u65b0\u533a\u7684\u89c4\u5212\u4f53\u7cfb\u4e0e\u653f\u7b56\u6587\u4ef6\u4f53\u7cfb\u5e9e\u5927\u4e14\u4e25\u8c28\uff0c\u4e3b\u8981\u9075\u5faa\u201c\u89c4\u5212\u5f15\u9886\u3001\u5236\u5ea6\u5148\u884c\u201d\u7684\u539f\u5219\u3002\u4ee5\u4e0b\u4e3a\u60a8\u68b3\u7406\u7684\u6838\u5fc3\u603b\u4f53\u89c4\u5212\u6846\u67b6\u53ca\u5173\u952e\u653f\u7b56\u6587\u4ef6\uff1a\\n\\n### \u4e00\u3001 \u603b\u4f53\u89c4\u5212\u4f53\u7cfb\\n\\n\u96c4\u5b89\u65b0\u533a\u7684\u89c4\u5212\u9075\u5faa\u201c1+1+3\u201d+\u201cX\u201d\u7684\u89c4\u5212\u4f53\u7cfb\uff1a\\n\\n1.  **\u300a\u6cb3\u5317\u96c4\u5b89\u65b0\u533a\u89c4\u5212\u7eb2\u8981\u300b**\uff08\u6838\u5fc3\u603b\u7eb2\uff09\\n    *   **\u5730\u4f4d**\uff1a\u96c4\u5b89\u65b0\u533a\u53d1\u5c55\u7684\u9876\u5c42\u8bbe\u8ba1\u548c\u5b8f\u89c2\u84dd\u56fe\u3002\\n    *   **\u6838\u5fc3\u5185\u5bb9**\uff1a\u660e\u786e\u4e86\u96c4\u5b89\u65b0\u533a\u7684\u6218\u7565\u5b9a\u4f4d\uff08\u7eff'"}], "notes": []}, {"eval_id": 4, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 4.6, "tokens": 600, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u5317\u4eac2022\u5e74\u51ac\u5965\u4f1a\u4e3b\u8981\u5728\u4e09\u4e2a\u8d5b\u533a\u4e3e\u884c\uff1a\u5317\u4eac\u8d5b\u533a\u3001\u5ef6\u5e86\u8d5b\u533a\u548c\u5f20\u5bb6\u53e3\u8d5b\u533a\u3002\u4e3b\u8981\u573a\u9986\u5305\u62ec\uff1a\\n\\n1. **\u5317\u4eac\u8d5b\u533a**\uff1a\\n   - **\u56fd\u5bb6\u4f53\u80b2\u573a\uff08\u9e1f\u5de2\uff09**\uff1a\u5f00\u95ed\u5e55\u5f0f\u4e3e\u529e\u5730\u3002\\n   - **\u56fd\u5bb6\u6e38\u6cf3\u4e2d\u5fc3\uff08\u6c34\u7acb\u65b9/\u51b0\u7acb\u65b9\uff09**\uff1a\u4e3e\u529e\u51b0\u58f6\u6bd4\u8d5b\u3002\\n   - **\u56fd\u5bb6\u901f\u6ed1\u9986\uff08\u51b0\u4e1d\u5e26\uff09**\uff1a\u4e3e\u529e\u901f\u5ea6\u6ed1\u51b0\u6bd4\u8d5b\u3002\\n   - **\u56fd\u5bb6\u4f53\u80b2\u9986**\uff1a\u4e3e\u529e\u82b1\u6837\u6ed1\u51b0\u548c\u51b0\u7403\u6bd4\u8d5b\u3002\\n   - **\u9996\u90fd\u4f53\u80b2\u9986**\uff1a\u4e3e\u529e\u77ed\u9053\u901f\u6ed1\u548c\u82b1'"}], "notes": []}, {"eval_id": 5, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 8.0, "tokens": 876, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u4e3a\u60a8\u7cbe\u9009\u4e86\u51e0\u5bb6\u9646\u5bb6\u5634\u53ca\u6d66\u4e1c\u6838\u5fc3\u533a\u57df\u53e3\u7891\u8f83\u597d\u7684\u672c\u5e2e\u83dc\u9986\uff0c\u6db5\u76d6\u4e0d\u540c\u6863\u6b21\u548c\u98ce\u683c\uff1a\\n\\n1.  **\u8001\u6b63\u5174\u83dc\u9986 (\u9646\u5bb6\u5634\u5e97)**\\n    *   **\u7279\u8272**\uff1a\u4e2d\u534e\u8001\u5b57\u53f7\uff0c\u4e3b\u6253\u4f20\u7edf\u6b63\u5b97\u672c\u5e2e\u83dc\uff0c\u53e3\u5473\u6d53\u6cb9\u8d64\u9171\uff0c\u7ecf\u5178\u65e0\u8bef\u3002\\n    *   **\u63a8\u8350\u83dc**\uff1a\u8349\u5934\u5708\u5b50\u3001\u6cb9\u7206\u867e\u3001\u516b\u5b9d\u8fa3\u9171\u3002\\n    *   **\u4f4d\u7f6e**\uff1a\u6d66\u4e1c\u65b0\u533a\u94f6\u57ce\u4e2d\u8def501\u53f7\u4e0a\u6d77\u4e2d\u5fc3\u5927\u53a6\u9644\u8fd1\uff08\u8ddd\u79bb\u9646\u5bb6\u5634\u6838\u5fc3\u533a\u5f88\u8fd1\uff09\u3002\\n\\n2.  **\u5170\u4ead\u9910\u5385 (\u56fd\u91d1\u4e2d'"}], "notes": []}, {"eval_id": 6, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 10.7, "tokens": 1174, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u8fd9\u662f\u4e00\u4e2a\u5173\u4e8e\u9065\u611f\u57fa\u7840\u77e5\u8bc6\u7684\u95ee\u7b54\uff0c\u4e0d\u5c5e\u4e8e\u6307\u5b9a\u7684\u5206\u6790\u6280\u80fd\u3002\u4ee5\u4e0b\u662f\u9488\u5bf9\u60a8\u95ee\u9898\u7684\u89e3\u7b54\uff1a\\n\\n### 1. \u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\\n\\n**\u5149\u5b66\u9065\u611f (Optical Remote Sensing)**\\n*   **\u539f\u7406**\uff1a\u4f9d\u9760\u592a\u9633\u6216\u5730\u7403\u5927\u6c14\u5bf9\u592a\u9633\u5149\u7684\u53cd\u5c04\uff0c\u6216\u8005\u7269\u4f53\u81ea\u8eab\u53d1\u5c04\u7684\u70ed\u8f90\u5c04\u6765\u6210\u50cf\u3002\u4e3b\u8981\u5229\u7528\u53ef\u89c1\u5149\u3001\u8fd1\u7ea2\u5916\u3001\u70ed\u7ea2\u5916\u7b49\u6ce2\u6bb5\u3002\\n*   **\u4f18\u70b9**\uff1a\\n    *   \u76f4\u89c2\uff1a\u6210\u50cf\u7ed3\u679c\u4e0e\u4eba\u773c\u6240\u89c1\u76f8\u4f3c\uff0c\u6613\u4e8e\u8bc6\u522b\u5730'"}], "notes": []}, {"eval_id": 7, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 6.5, "tokens": 1571, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}, {"text": "image_agent years=[2020, 2025]", "passed": true, "evidence": "\u5b9e\u9645 years=[2020, 2025], \u671f\u671b=[2020, 2025]"}], "notes": []}, {"eval_id": 8, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 0.8, "passed": 4, "failed": 1, "total": 5, "time_seconds": 7.0, "tokens": 1652, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=6 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=4"}, {"text": "image_agent years=[2021, 2026]", "passed": false, "evidence": "\u5b9e\u9645 years=[2021, 2022, 2023, 2024, 2025, 2026], \u671f\u671b=[2021, 2026]"}], "notes": []}, {"eval_id": 9, "configuration": "old_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 4, "failed": 0, "total": 4, "time_seconds": 4.8, "tokens": 1404, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=3 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 0\uff0c\u8def\u5f84B\uff09", "passed": true, "evidence": "image_agent=0, \u671f\u671b=0"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=2"}], "notes": []}, {"eval_id": 1, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 0.6, "tokens": 401, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\\n\"skill\": \"remote-sensing-analysis\"\\n}'"}], "notes": []}, {"eval_id": 2, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 0.6, "tokens": 384, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "notes": []}, {"eval_id": 3, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 0.6, "tokens": 387, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u5e94\u89e6\u53d1\u6280\u80fd\uff09", "passed": true, "evidence": "\u89e6\u53d1=True, \u5339\u914d='remote-sensing-analysis', \u671f\u671b\u89e6\u53d1=True | \u8f93\u51fa\u524d200\u5b57: '{\"skill\": \"remote-sensing-analysis\"}'"}], "notes": []}, {"eval_id": 4, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 4.0, "tokens": 638, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '2022\u5e74\u5317\u4eac\u51ac\u5965\u4f1a\u4e3b\u8981\u5728\u4e09\u4e2a\u8d5b\u533a\u4e3e\u884c\uff0c\u5171\u4f7f\u7528\u4e8625\u4e2a\u573a\u9986\uff0c\u5177\u4f53\u5206\u5e03\u5982\u4e0b\uff1a\\n\\n1.  **\u5317\u4eac\u8d5b\u533a**\uff1a\u4e3b\u8981\u8d1f\u8d23\u51b0\u4e0a\u9879\u76ee\u3002\\n    *   \u56fd\u5bb6\u6e38\u6cf3\u4e2d\u5fc3\uff08\u201c\u6c34\u7acb\u65b9\u201d\uff0c\u51ac\u5965\u4f1a\u671f\u95f4\u8f6c\u6362\u4e3a\u201c\u51b0\u7acb\u65b9\u201d\u7528\u4e8e\u51b0\u58f6\u6bd4\u8d5b\uff09\\n    *   \u56fd\u5bb6\u4f53\u80b2\u9986\\n    *   \u4e94\u68f5\u677e\u4f53\u80b2\u4e2d\u5fc3\uff08\u51ac\u5965\u4f1a\u671f\u95f4\u79f0\u4e3a\u201c\u4e94\u68f5\u677e\u51b0\u4e0a\u8fd0\u52a8\u4e2d\u5fc3\u201d\uff09\\n    *   \u9996\u90fd\u4f53\u80b2\u9986\\n\\n2.  **\u5ef6\u5e86\u8d5b\u533a**\uff1a\u4e3b\u8981\u8d1f\u8d23\u9ad8\u5c71\u6ed1\u96ea\u3001\u96ea\u8f66\u3001\u96ea\u6a47\u7b49\u96ea\u4e0a\u9879'"}], "notes": []}, {"eval_id": 5, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 7.2, "tokens": 872, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u4e0a\u6d77\u9646\u5bb6\u5634\u53ca\u5468\u8fb9\u6709\u4e0d\u5c11\u8bc4\u4ef7\u4e0d\u9519\u7684\u672c\u5e2e\u83dc\u9986\u5b50\uff0c\u4ee5\u4e0b\u4e3a\u60a8\u63a8\u8350\u51e0\u5bb6\u4e0d\u540c\u98ce\u683c\u7684\u9910\u5385\uff1a\\n\\n1. **\u4e0a\u6d77\u8001\u996d\u5e97\uff08\u8c6b\u56ed\u5e97\uff09**\\n   - \u867d\u7136\u4e0d\u5728\u9646\u5bb6\u5634\u6838\u5fc3\u533a\uff0c\u4f46\u8ddd\u79bb\u4e0d\u8fdc\uff08\u6253\u8f66\u7ea615-20\u5206\u949f\uff09\uff0c\u662f\u6b63\u5b97\u7684\u672c\u5e2e\u83dc\u8001\u5b57\u53f7\u3002\\n   - **\u7279\u8272**\uff1a\u6cb9\u7206\u867e\u3001\u516b\u5b9d\u9e2d\u3001\u8349\u5934\u5708\u5b50\uff0c\u53e3\u5473\u4f20\u7edf\u6d53\u90c1\u3002\\n   - **\u9002\u5408**\uff1a\u60f3\u8981\u4f53\u9a8c\u6700\u7ecf\u5178\u4e0a\u6d77\u5473\u9053\uff0c\u4e14\u613f\u610f\u7a0d\u5fae\u8dd1\u8fdc\u4e00\u70b9\u7684\u5546\u52a1\u5bb4\u8bf7\u3002\\n\\n2. **\u752c\u5e9c\uff08\u9646\u5bb6\u5634\u4e2d\u5fc3L\u578b\u5e7f\u573a\u5e97/\u56fd\u91d1\u4e2d'"}], "notes": []}, {"eval_id": 6, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1, "time_seconds": 9.6, "tokens": 1118, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8def\u7531\u51b3\u7b56\u6b63\u786e\uff08\u4e0d\u5e94\u89e6\u53d1\uff09", "passed": true, "evidence": "\u89e6\u53d1=False, \u5339\u914d=None, \u671f\u671b\u89e6\u53d1=False | \u8f93\u51fa\u524d200\u5b57: '\u8fd9\u662f\u4e00\u4e2a\u5173\u4e8e\u9065\u611f\u57fa\u672c\u6982\u5ff5\u548c\u6280\u672f\u539f\u7406\u7684\u95ee\u9898\uff0c\u4e0d\u5c5e\u4e8e\u5bf9\u7279\u5b9a\u5730\u533a\u53d1\u5c55\u6216\u89c4\u5212\u7684\u5206\u6790\uff0c\u56e0\u6b64\u65e0\u6cd5\u8c03\u7528\u6280\u80fd\u3002\u4ee5\u4e0b\u662f\u9488\u5bf9\u60a8\u95ee\u9898\u7684\u89e3\u7b54\uff1a\\n\\n### 1. \u5149\u5b66\u9065\u611f\u548c\u96f7\u8fbe\u9065\u611f\u7684\u533a\u522b\\n\\n\u8fd9\u4e24\u79cd\u9065\u611f\u6280\u672f\u7684\u4e3b\u8981\u533a\u522b\u5728\u4e8e**\u5de5\u4f5c\u6ce2\u6bb5**\u3001**\u6210\u50cf\u673a\u7406**\u4ee5\u53ca**\u53d7\u73af\u5883\u5f71\u54cd\u7684\u80fd\u529b**\uff1a\\n\\n*   **\u5de5\u4f5c\u6ce2\u6bb5\u4e0e\u80fd\u91cf\u6765\u6e90**\uff1a\\n    *   **\u5149\u5b66\u9065\u611f**\uff08Optical Remote Sensing\uff09\uff1a\u4e3b\u8981\u5229\u7528\u53ef\u89c1\u5149\u3001\u8fd1\u7ea2'"}], "notes": []}, {"eval_id": 7, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 6.3, "tokens": 1601, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}, {"text": "image_agent years=[2020, 2025]", "passed": true, "evidence": "\u5b9e\u9645 years=[2020, 2025], \u671f\u671b=[2020, 2025]"}], "notes": []}, {"eval_id": 8, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 6.5, "tokens": 1604, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=5 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['image_agent', 'search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 1\uff0c\u8def\u5f84A\uff09", "passed": true, "evidence": "image_agent=1, \u671f\u671b=1"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}, {"text": "image_agent years=[2021, 2026]", "passed": true, "evidence": "\u5b9e\u9645 years=[2021, 2026], \u671f\u671b=[2021, 2026]"}], "notes": []}, {"eval_id": 9, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 4, "failed": 0, "total": 4, "time_seconds": 5.4, "tokens": 1494, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8f93\u51fa\u662f\u5408\u6cd5 JSON \u4e14\u542b tasks \u6570\u7ec4", "passed": true, "evidence": "\u89e3\u6790\u6210\u529f, tasks=4 \u4e2a"}, {"text": "\u6700\u540e\u4e00\u4e2a\u4efb\u52a1\u7684 agent \u662f analysis_agent", "passed": true, "evidence": "agents \u5e8f\u5217: ['search_agent', 'search_agent', 'search_agent', 'analysis_agent']"}, {"text": "image_agent \u6570\u91cf\u6b63\u786e\uff08\u671f\u671b 0\uff0c\u8def\u5f84B\uff09", "passed": true, "evidence": "image_agent=0, \u671f\u671b=0"}, {"text": "search_agent \u4efb\u52a1\u6570\u91cf\u5728 2-4 \u4e4b\u95f4", "passed": true, "evidence": "search_agent=3"}], "notes": []}], "run_summary": {"old_skill": {"pass_rate": {"mean": 0.8667, "stddev": 0.3317, "min": 0.0, "max": 1.0}, "time_seconds": {"mean": 6.0778, "stddev": 3.9341, "min": 0.6, "max": 11.9}, "tokens": {"mean": 1029.4444, "stddev": 524.6471, "min": 303, "max": 1652}}, "with_skill": {"pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0}, "time_seconds": {"mean": 4.5333, "stddev": 3.3019, "min": 0.6, "max": 9.6}, "tokens": {"mean": 944.3333, "stddev": 526.491, "min": 384, "max": 1604}}, "delta": {"pass_rate": "-0.13", "time_seconds": "+1.5", "tokens": "+85"}}, "notes": []}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

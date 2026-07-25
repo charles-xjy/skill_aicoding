@@ -1,0 +1,33 @@
+{
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 4,
+    "failed": 0,
+    "total": 4
+  },
+  "expectations": [
+    {
+      "text": "输出是合法 JSON 且含 tasks 数组",
+      "passed": true,
+      "evidence": "解析成功, tasks=3 个"
+    },
+    {
+      "text": "最后一个任务的 agent 是 analysis_agent",
+      "passed": true,
+      "evidence": "agents 序列: ['search_agent', 'search_agent', 'analysis_agent']"
+    },
+    {
+      "text": "image_agent 数量正确（期望 0，路径B）",
+      "passed": true,
+      "evidence": "image_agent=0, 期望=0"
+    },
+    {
+      "text": "search_agent 任务数量在 2-4 之间",
+      "passed": true,
+      "evidence": "search_agent=2"
+    }
+  ],
+  "timing": {
+    "total_duration_seconds": 0.0
+  }
+}

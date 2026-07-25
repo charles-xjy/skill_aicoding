@@ -4,6 +4,7 @@ import React, {
   ReactNode,
   useState,
   useEffect,
+  useRef,
 } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { type Message } from "@langchain/langgraph-sdk";
@@ -68,21 +69,24 @@ async function checkGraphStatus(
   }
 }
 
-const StreamSession = ({
+const StreamSessionInner = ({
   children,
   apiKey,
   apiUrl,
   assistantId,
   authScheme,
+  isCreatingRef,
 }: {
   children: ReactNode;
   apiKey: string | null;
   apiUrl: string;
   assistantId: string;
   authScheme?: string;
+  isCreatingRef: React.MutableRefObject<boolean>;
 }) => {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { getThreads, setThreads } = useThreads();
+
   const streamValue = useTypedStream({
     apiUrl,
     apiKey: apiKey ?? undefined,
@@ -103,9 +107,8 @@ const StreamSession = ({
       }
     },
     onThreadId: (id) => {
+      isCreatingRef.current = true;
       setThreadId(id);
-      // Refetch threads list when thread ID changes.
-      // Wait for some seconds before fetching so we're able to get the new thread that was created.
       sleep().then(() => getThreads().then(setThreads).catch(console.error));
     },
   });
@@ -135,6 +138,48 @@ const StreamSession = ({
   );
 };
 
+const StreamSession = ({
+  children,
+  apiKey,
+  apiUrl,
+  assistantId,
+  authScheme,
+}: {
+  children: ReactNode;
+  apiKey: string | null;
+  apiUrl: string;
+  assistantId: string;
+  authScheme?: string;
+}) => {
+  const [threadId] = useQueryState("threadId");
+  const [sessionKey, setSessionKey] = useState(0);
+  const prevThreadIdRef = useRef(threadId);
+  const isCreatingRef = useRef(false);
+
+  useEffect(() => {
+    if (threadId !== prevThreadIdRef.current) {
+      if (!isCreatingRef.current && threadId !== null) {
+        setSessionKey((k) => k + 1);
+      }
+      prevThreadIdRef.current = threadId;
+      isCreatingRef.current = false;
+    }
+  }, [threadId]);
+
+  return (
+    <StreamSessionInner
+      key={sessionKey}
+      apiKey={apiKey}
+      apiUrl={apiUrl}
+      assistantId={assistantId}
+      authScheme={authScheme}
+      isCreatingRef={isCreatingRef}
+    >
+      {children}
+    </StreamSessionInner>
+  );
+};
+
 // Default values for the form
 const DEFAULT_API_URL = "http://localhost:2024";
 const DEFAULT_ASSISTANT_ID = "agent";
@@ -159,7 +204,6 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
   const [authScheme, setAuthScheme] = useQueryState("authScheme", {
     defaultValue: envAuthScheme || "",
   });
-  const [threadId] = useQueryState("threadId");
   const [isAgentBuilder, setIsAgentBuilder] = useState(
     () =>
       (authScheme || envAuthScheme || "").toLowerCase() ===
@@ -304,7 +348,6 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
 
   return (
     <StreamSession
-      key={threadId ?? "new"}
       apiKey={apiKey}
       apiUrl={finalApiUrl}
       assistantId={finalAssistantId}

@@ -1,0 +1,3 @@
+{
+"skill": "remote-sensing-analysis"
+}

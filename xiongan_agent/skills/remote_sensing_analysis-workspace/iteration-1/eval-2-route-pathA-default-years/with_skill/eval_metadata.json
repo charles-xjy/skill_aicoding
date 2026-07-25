@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "route-pathA-default-years",
+  "prompt": "雄安新区这几年建设得怎么样了？我想看看空间上的变化",
+  "assertions": [
+    {
+      "text": "路由决策正确：应触发技能(输出skill JSON)",
+      "type": "routing_correct"
+    }
+  ],
+  "note": "should_trigger=True, expected_path=A"
+}

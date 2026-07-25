@@ -134,7 +134,44 @@ UI 默认运行在 `http://localhost:3000`。
 1. **跳过端口选择**：直接用 httpx 探测 vLLM 端口，将结果写入 `model_probe._cached`，避免 `questionary` 弹出交互式菜单。
 2. **跳过模型选择**：将 `supervisor_agent_main._select_analysis_model` 替换为读取 `ANALYSIS_MODEL` 环境变量的函数。
 
-`checkpointer=None` 传给 `create_supervisor_graph`，由 LangGraph server 自己负责状态持久化（默认 in-memory）。
+`checkpointer=None` 传给 `create_supervisor_graph`，图本身不创建 Checkpointer。
+LangGraph Server 根据 `langgraph.json` 的 `checkpointer.path` 加载
+`checkpointer.py`，将线程状态和消息 checkpoint 持久化到
+`xiongan_frontend/checkpoints.db`。
+
+### 对话历史持久化
+
+本项目显式使用 `AsyncSqliteSaver`，避免 `langgraph dev` 重启后出现
+“历史列表仍有标题，但线程状态为空”的情况：
+
+```json
+"checkpointer": {
+  "path": "./checkpointer.py:checkpointer"
+}
+```
+
+启动时应能看到类似日志：
+
+```text
+Configuring custom checkpointer at ./checkpointer.py:checkpointer
+Using custom checkpointer: AsyncSqliteSaver
+```
+
+首次产生 checkpoint 后会自动创建 `xiongan_frontend/checkpoints.db`。
+该文件及 SQLite 的 `-shm`、`-wal` sidecar 文件均为运行时数据，已加入
+`.gitignore`。
+
+SQLite 适合当前单机、局域网少量用户的部署方式。它不适合多个服务实例
+共享同一数据库；并发量或部署规模增加后，应迁移到 PostgreSQL。
+
+> **权限提示：** SQLite 只负责持久化，不负责用户隔离。当前服务没有登录
+> 和服务端 owner 过滤，连接到同一 LangGraph Server 的局域网用户可能看到
+> 彼此的历史线程。不要将未鉴权的 `2024` 端口暴露到不可信网络。
+
+`AsyncSqliteSaver` 支持对话恢复所需的核心 checkpoint 读写和线程删除。
+部分高级能力（取消运行后的 rollback 清理、历史 `keep_latest` 裁剪等）
+可能降级；长期运行时旧 checkpoint 会持续累积，需要定期删除不再使用的
+线程或迁移到完整的生产持久化后端。
 
 ### Skill 路由（意图识别）
 

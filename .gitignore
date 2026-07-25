@@ -20,6 +20,12 @@ node_modules/
 .langgraph_api/
 *.pckl
 .langgraph_*
+
+# Local LangGraph SQLite checkpoints
+/xiongan_frontend/checkpoints.db
+/xiongan_frontend/checkpoints.db-shm
+/xiongan_frontend/checkpoints.db-wal
+
 # Output
 output/
 
@@ -35,4 +41,3 @@ xiongan_agent/image_agent/Google_earth_image/
 # 外部 AI IDE（Qoder）在仓库根注入的 SDK，非本项目依赖
 /package.json
 /package-lock.json
-

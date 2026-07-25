@@ -3,5 +3,8 @@
   "graphs": {
     "agent": "./graph.py:graph"
   },
-  "env": "../.env"
+  "env": "../.env",
+  "checkpointer": {
+    "path": "./checkpointer.py:checkpointer"
+  }
 }

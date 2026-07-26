@@ -144,6 +144,15 @@ def _is_obviously_invalid_input(text: str) -> bool:
     return _re.search(r"[\u4e00-\u9fffA-Za-z]", compact) is None
 
 
+def _invalid_input_clarification(text: str) -> str:
+    if text.strip():
+        return (
+            f"你刚才输入的是“{text.strip()}”，是不是输错了？"
+            "你可以直接告诉我想聊什么，或者说明需要分析的地区和问题。"
+        )
+    return "你好像还没有输入具体内容。你可以直接告诉我想聊什么，或者说明需要分析的地区和问题。"
+
+
 # =============================================================================================
 # 2. State 定义
 # =============================================================================================
@@ -166,6 +175,7 @@ class SupervisorState(TypedDict):
     ]
     execution_log: List[str]
     retry_count: int
+    intent_route: Literal["action", "chat", "clarify"]
 
 
 def create_supervisor_state() -> Dict:
@@ -176,11 +186,87 @@ def create_supervisor_state() -> Dict:
         "next_step": "supervisor",
         "execution_log": [],
         "retry_count": 0,
+        "intent_route": "clarify",
     }
 
 
 # =============================================================================================
-# 3. 任务列表打印
+# 3. 意图路由：普通聊天 / 需求确认 / 技能任务
+# =============================================================================================
+_INTENT_ROUTER_PROMPT = SystemMessage(content="""你是城市治理智能体的意图路由器。
+
+判断用户最新一条消息属于哪一类：
+- action：明确的查询、分析、搜索、图片识别或城市治理任务
+- chat：问候、闲聊、询问你是谁/能做什么，或无需调用工具的普通问题
+- clarify：输入无意义，或看起来想执行任务但关键信息不足
+
+只输出严格 JSON：
+{"type":"action"}
+{"type":"chat","reply":"自然、友好的中文回复"}
+{"type":"clarify","question":"结合用户原话提出简短确认问题"}
+
+不要复读用户原文。对于“1”、纯数字、乱码等输入必须输出 clarify。""")
+
+
+async def intent_router_node(state: Dict) -> Dict:
+    """先确认意图，避免无效输入进入规划器或被模型原样复读。"""
+    latest_user_text = _latest_human_text(state.get("messages", []))
+
+    if _is_obviously_invalid_input(latest_user_text):
+        return {
+            "messages": [AIMessage(content=_invalid_input_clarification(latest_user_text))],
+            "intent_route": "clarify",
+            "next_step": "end",
+        }
+
+    # 保留最近几轮上下文，使“是的”“刚才输错了”等确认回复可以结合上一条追问理解。
+    recent_messages = state.get("messages", [])[-8:]
+    response = await (await _get_main_model()).bind(max_tokens=512).ainvoke(
+        [_INTENT_ROUTER_PROMPT] + recent_messages
+    )
+    raw = _response_text(response)
+    json_match = _re.search(r"\{.*\}", raw, _re.DOTALL)
+    try:
+        result = json.loads(json_match.group(0)) if json_match else {}
+    except json.JSONDecodeError:
+        result = {}
+
+    route_type = result.get("type")
+    if route_type == "action":
+        return {
+            "intent_route": "action",
+            "task_plan": [],
+            "current_task_index": 0,
+            "next_step": "supervisor",
+            "retry_count": 0,
+        }
+
+    if route_type == "chat":
+        reply = str(result.get("reply", "")).strip()
+        if not reply or reply == latest_user_text:
+            reply = "你好！我是城市治理分析智能体，也可以和你进行普通对话。你想聊些什么？"
+        return {
+            "messages": [AIMessage(content=reply)],
+            "intent_route": "chat",
+            "next_step": "end",
+        }
+
+    question = str(result.get("question", "")).strip()
+    if not question or question == latest_user_text:
+        question = "我还不太确定你的具体需求。你是想普通聊天，还是需要查询或分析某个地区的问题？"
+    return {
+        "messages": [AIMessage(content=question)],
+        "intent_route": "clarify",
+        "next_step": "end",
+    }
+
+
+def route_after_intent(state: Dict) -> str:
+    return "supervisor" if state.get("intent_route") == "action" else END
+
+
+# =============================================================================================
+# 4. 任务列表打印
 # =============================================================================================
 _STATUS_ICON = {
     "pending": "⬜",
@@ -267,13 +353,7 @@ async def supervisor_node(state: Dict) -> Dict:
             execution_log.append(log)
             return {
                 "messages": [
-                    AIMessage(
-                        content=(
-                            "我还无法判断你的具体需求。你可以直接和我聊天、询问城市治理"
-                            "相关问题，或者告诉我想分析的地区和关注方向，例如："
-                            "“分析雄安新区近五年的建设变化”。"
-                        )
-                    )
+                    AIMessage(content=_invalid_input_clarification(latest_user_text))
                 ],
                 "next_step": "end",
                 "execution_log": execution_log,
@@ -321,6 +401,13 @@ async def supervisor_node(state: Dict) -> Dict:
             content = _response_text(response)
         if not content:
             content = "请提供具体的咨询内容，例如需要分析的区域、时间范围或问题。"
+
+        # 某些本地模型偶尔会直接复读输入。对无效输入或复读结果统一改为
+        # 需求确认，避免把用户原文作为 AI 回复写进对话历史。
+        if _is_obviously_invalid_input(latest_user_text) or (
+            content.strip() == latest_user_text.strip()
+        ):
+            content = _invalid_input_clarification(latest_user_text)
 
         # ── 3a. 检测是否调用了 skill ─────────────────────────────────────────
         skill_call = _re.search(r'\{[^{}]*"skill"\s*:\s*"([^"]+)"[^{}]*\}', content)
@@ -751,6 +838,7 @@ async def create_supervisor_graph(checkpointer):
 
     workflow = StateGraph(SupervisorState)
 
+    workflow.add_node("intent_router", intent_router_node)
     workflow.add_node("supervisor", supervisor_node)
 
     image_node = await create_subgraph_node("image_agent", checkpointer)
@@ -760,7 +848,15 @@ async def create_supervisor_graph(checkpointer):
     workflow.add_node("search_agent", search_node)
     workflow.add_node("analysis_agent", analysis_node)
 
-    workflow.add_edge(START, "supervisor")
+    workflow.add_edge(START, "intent_router")
+    workflow.add_conditional_edges(
+        "intent_router",
+        route_after_intent,
+        {
+            "supervisor": "supervisor",
+            END: END,
+        },
+    )
     workflow.add_conditional_edges(
         "supervisor",
         should_continue,

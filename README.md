@@ -377,6 +377,11 @@ pnpm build
 - 密钥管理、访问日志、超时与限流；
 - 数据库备份和历史清理策略。
 
+## 实现说明
+
+- [用户需求确认与普通对话路由](USER_INTENT_ROUTING.md)
+- [搜索报告来源编号与正文引用处理](REPORT_SOURCE_NUMBERING.md)
+
 ## 当前关键版本
 
 - Python：`>=3.11`

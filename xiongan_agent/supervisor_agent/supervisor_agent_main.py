@@ -121,6 +121,29 @@ def _response_text(response) -> str:
     return content.strip()
 
 
+def _latest_human_text(messages: List[BaseMessage]) -> str:
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            content = message.content
+            if isinstance(content, str):
+                return content.strip()
+            if isinstance(content, list):
+                return "".join(
+                    str(block.get("text", ""))
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                ).strip()
+    return ""
+
+
+def _is_obviously_invalid_input(text: str) -> bool:
+    """Reject only inputs that cannot express a useful conversational intent."""
+    compact = _re.sub(r"\s+", "", text)
+    if not compact or compact.isdigit():
+        return True
+    return _re.search(r"[\u4e00-\u9fffA-Za-z]", compact) is None
+
+
 # =============================================================================================
 # 2. State 定义
 # =============================================================================================
@@ -238,6 +261,24 @@ async def supervisor_node(state: Dict) -> Dict:
 
     # ── 规划阶段：task_plan 为空，第一次进入 ─────────────────────────────
     if not task_plan:
+        latest_user_text = _latest_human_text(messages)
+        if _is_obviously_invalid_input(latest_user_text):
+            log = f"[{datetime.now().isoformat()}] 💬 输入信息不足，请求用户补充"
+            execution_log.append(log)
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            "我还无法判断你的具体需求。你可以直接和我聊天、询问城市治理"
+                            "相关问题，或者告诉我想分析的地区和关注方向，例如："
+                            "“分析雄安新区近五年的建设变化”。"
+                        )
+                    )
+                ],
+                "next_step": "end",
+                "execution_log": execution_log,
+            }
+
         # ── 1. 读取技能描述列表（只读 frontmatter，不加载正文）────────────────
         skills = _read_skill_descriptions()
 
@@ -353,8 +394,20 @@ async def supervisor_node(state: Dict) -> Dict:
             log = f"[{datetime.now().isoformat()}] ❌ 规划失败，任务列表为空"
             execution_log.append(log)
             print(f"\n\033[31m{log}{RESET}\n")
+            extracted = plan_data.get("extracted", {})
+            location = extracted.get("location")
+            if location and location not in {"未知", "无", "未提供"}:
+                clarification = (
+                    f"我理解你想了解“{location}”，但还需要确认具体需求。"
+                    "你更关注建设变化、规划政策、配套设施，还是卫星影像对比？"
+                )
+            else:
+                clarification = (
+                    "我还不能确定你想分析的地区和方向。请补充地点以及关注的问题，"
+                    "例如：“分析雄安新区近五年的建设和配套变化”。"
+                )
             return {
-                "messages": [response],
+                "messages": [AIMessage(content=clarification)],
                 "task_plan": [],
                 "next_step": "end",
                 "execution_log": execution_log,

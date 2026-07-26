@@ -12,6 +12,7 @@ import { TooltipIconButton } from "../tooltip-icon-button";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 function ContentCopyable({
   content,
@@ -22,9 +23,11 @@ function ContentCopyable({
 }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+  const handleCopy = async (
+    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+  ) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(content);
+    if (!(await copyToClipboard(content))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

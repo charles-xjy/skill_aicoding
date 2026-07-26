@@ -12,6 +12,7 @@ import { SyntaxHighlighter } from "@/components/thread/syntax-highlighter";
 
 import { TooltipIconButton } from "@/components/thread/tooltip-icon-button";
 import { cn } from "@/lib/utils";
+import { copyToClipboard as writeToClipboard } from "@/lib/copy-to-clipboard";
 
 import "katex/dist/katex.min.css";
 
@@ -27,13 +28,12 @@ const useCopyToClipboard = ({
 } = {}) => {
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
-  const copyToClipboard = (value: string) => {
+  const copyToClipboard = async (value: string) => {
     if (!value) return;
 
-    navigator.clipboard.writeText(value).then(() => {
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), copiedDuration);
-    });
+    if (!(await writeToClipboard(value))) return;
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), copiedDuration);
   };
 
   return { isCopied, copyToClipboard };

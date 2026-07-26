@@ -16,6 +16,41 @@ import { copyToClipboard as writeToClipboard } from "@/lib/copy-to-clipboard";
 
 import "katex/dist/katex.min.css";
 
+/**
+ * 模型偶尔会把整个来源列表压成一个段落。这里在渲染前统一整理，
+ * 既能修复新回复，也能改善 SQLite 中已经保存的历史消息。
+ */
+function normalizeSourceList(markdown: string): string {
+  const sourceHeading =
+    /(^|\n)[ \t]*(?:#{1,6}[ \t]+)?来源[ \t]*(?:\n|(?=(?:[-*][ \t]*)?\[\d+\]))/gm;
+  let lastMatch: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = sourceHeading.exec(markdown)) !== null) {
+    lastMatch = match;
+  }
+
+  if (!lastMatch) return markdown;
+
+  const headingStart = lastMatch.index + (lastMatch[1] ? 1 : 0);
+  const sourceStart = lastMatch.index + lastMatch[0].length;
+  const report = markdown.slice(0, headingStart).trimEnd();
+  const sourceText = markdown.slice(sourceStart).trim();
+  if (!sourceText) return markdown;
+
+  const entries = sourceText
+    .replace(/\s+(?=(?:[-*][ \t]*)?\[\d+\][ \t]+)/g, "\n")
+    .split(/\n+/)
+    .map((entry) => entry.trim().replace(/^[-*][ \t]+/, ""))
+    .filter(Boolean);
+
+  if (!entries.length) return markdown;
+
+  return `${report}\n\n## 来源\n\n${entries
+    .map((entry) => `- ${entry}`)
+    .join("\n\n")}`;
+}
+
 interface CodeHeaderProps {
   language?: string;
   code: string;
@@ -244,6 +279,8 @@ const defaultComponents: any = {
 };
 
 const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
+  const normalizedMarkdown = normalizeSourceList(children);
+
   return (
     <div className="markdown-content">
       <ReactMarkdown
@@ -251,7 +288,7 @@ const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
         rehypePlugins={[rehypeKatex]}
         components={defaultComponents}
       >
-        {children}
+        {normalizedMarkdown}
       </ReactMarkdown>
     </div>
   );

@@ -1,4 +1,11 @@
 /* Base markdown styles */
+.markdown-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
 .markdown-content code:not(pre code) {
   background-color: rgba(0, 0, 0, 0.05);
   padding: 0.2em 0.4em;
@@ -9,6 +16,8 @@
 .markdown-content a {
   color: #0070f3;
   text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .markdown-content a:hover {
@@ -22,12 +31,22 @@
 }
 
 .markdown-content pre {
+  max-width: 100%;
   overflow-x: auto;
 }
 
 .markdown-content table {
   border-collapse: collapse;
+  max-width: 100%;
   width: 100%;
+}
+
+.markdown-content li {
+  padding-left: 0.2rem;
+}
+
+.markdown-content li > a {
+  display: inline;
 }
 
 .markdown-content th,

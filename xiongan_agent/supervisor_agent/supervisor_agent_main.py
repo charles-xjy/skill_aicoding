@@ -123,16 +123,26 @@ def _response_text(response) -> str:
 
 def _latest_human_text(messages: List[BaseMessage]) -> str:
     for message in reversed(messages):
-        if isinstance(message, HumanMessage):
-            content = message.content
-            if isinstance(content, str):
-                return content.strip()
-            if isinstance(content, list):
-                return "".join(
-                    str(block.get("text", ""))
-                    for block in content
-                    if isinstance(block, dict) and block.get("type") == "text"
-                ).strip()
+        if isinstance(message, dict):
+            message_type = message.get("type") or message.get("role")
+            content = message.get("content", "")
+        else:
+            message_type = getattr(message, "type", None) or getattr(message, "role", None)
+            content = getattr(message, "content", "")
+
+        # langgraph-api 0.11.x 可能传入协议消息对象，而不一定是当前
+        # langchain_core.messages.HumanMessage 的同一个 Python 类。
+        if not isinstance(message, HumanMessage) and message_type not in {"human", "user"}:
+            continue
+
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            return "".join(
+                str(block.get("text", ""))
+                for block in content
+                if isinstance(block, dict) and block.get("type") in {"text", "input_text"}
+            ).strip()
     return ""
 
 

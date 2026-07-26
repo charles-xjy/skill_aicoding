@@ -1,18 +1,18 @@
 import asyncio
-import json
 import re
-import select
-import subprocess
-import time
 from datetime import datetime
 from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
+from mcp_server_fetch.server import (
+    DEFAULT_USER_AGENT_AUTONOMOUS,
+    fetch_url,
+)
 
-# 单个 URL 的 MCP 抓取整体超时（wall-clock）。超时即 kill 子进程返回空，
-# 由上层 fallback_body（搜索摘要）兜底，避免 _recv() 无限阻塞导致整图卡死。
-_FETCH_TIMEOUT = 30.0
+# 单个 URL 的 MCP 抓取整体超时。使用官方 MCP ClientSession，
+# 不再手写 stdio JSON-RPC framing，避免与 mcp-server-fetch 协议不匹配。
+_FETCH_TIMEOUT = 12.0
 
 
 def _strip_thinking(text: str) -> str:
@@ -22,139 +22,43 @@ def _strip_thinking(text: str) -> str:
     return text.strip()
 
 
-def _fetch_raw_via_stdio(url: str) -> str:
-    """
-    直接用 subprocess.Popen 调用 MCP fetch 服务器，实现同步 JSON-RPC 通信。
+async def _fetch_with_official_mcp(url: str) -> str:
+    """调用官方 Model Context Protocol Fetch Server 的网页提取实现。"""
+    import httpx
 
-    subprocess.Popen 走 C 层 CreateProcess/fork_exec，不经过 Python os.access，
-    因此 blockbuster 无法拦截，可安全地在无 event loop 的线程中调用。
+    # mcp-server-fetch 旧版使用 proxies=，httpx 0.28 改名为 proxy。
+    original_client = httpx.AsyncClient
 
-    整体受 _FETCH_TIMEOUT 限制：超时 kill 子进程并返回空串，
-    避免对端反爬挂起连接时 _recv() 无限阻塞。
-    """
+    class CompatAsyncClient(original_client):
+        def __init__(self, *args, proxies=None, **kwargs):
+            if proxies is not None:
+                kwargs["proxy"] = proxies
+            super().__init__(*args, **kwargs)
+
+    httpx.AsyncClient = CompatAsyncClient
     try:
-        proc = subprocess.Popen(
-            ["npx", "-y", "mcp-server-fetch-typescript"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+        content, prefix = await fetch_url(
+            url,
+            DEFAULT_USER_AGENT_AUTONOMOUS,
+            force_raw=False,
+            proxy_url=None,
         )
-    except Exception as e:
-        print(f"  [MCP stdio] 启动失败: {e}")
-        return ""
-
-    deadline = time.monotonic() + _FETCH_TIMEOUT
-
-    def _send(msg: dict) -> None:
-        data = json.dumps(msg).encode("utf-8")
-        header = f"Content-Length: {len(data)}\r\n\r\n".encode("ascii")
-        proc.stdin.write(header + data)
-        proc.stdin.flush()
-
-    def _recv() -> dict:
-        """带超时地读取一个 JSON-RPC 响应。超时或对端关闭返回 {}。"""
-        headers: dict[str, str] = {}
-        # 读 headers：逐行读直到空行，每行受剩余 deadline 约束
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return {}
-            # 用 select 等待 stdout 可读，避免 readline 永久阻塞
-            rlist, _, _ = select.select([proc.stdout], [], [], remaining)
-            if not rlist:
-                return {}  # 超时
-            line = proc.stdout.readline()
-            if not line:
-                return {}  # 对端关闭
-            decoded = line.decode("utf-8", errors="replace").rstrip("\r\n")
-            if not decoded:
-                break
-            if ":" in decoded:
-                key, _, val = decoded.partition(":")
-                headers[key.strip().lower()] = val.strip()
-        length = int(headers.get("content-length", 0))
-        if not length:
-            return {}
-        data = b""
-        while len(data) < length:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return {}
-            rlist, _, _ = select.select([proc.stdout], [], [], remaining)
-            if not rlist:
-                return {}
-            chunk = proc.stdout.read(length - len(data))
-            if not chunk:
-                break
-            data += chunk
-        try:
-            return json.loads(data.decode("utf-8"))
-        except Exception:
-            return {}
-
-    timed_out = False
-    try:
-        # 1. Initialize 握手
-        _send({
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "xiongan-fetch", "version": "1.0"},
-            },
-        })
-        init_resp = _recv()
-        if not init_resp:
-            timed_out = True
-            print(f"  [MCP stdio] initialize 超时（>{_FETCH_TIMEOUT:.0f}s），放弃: {url}")
-            return ""
-        if "error" in init_resp:
-            print(f"  [MCP stdio] initialize 失败: {init_resp['error']}")
-            return ""
-
-        # 2. Initialized 通知
-        _send({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
-
-        # 3. 调用 get_markdown_summary
-        _send({
-            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-            "params": {"name": "get_markdown_summary", "arguments": {"url": url}},
-        })
-        call_resp = _recv()
-
-        if not call_resp:
-            timed_out = True
-            print(f"  [MCP stdio] 抓取超时（>{_FETCH_TIMEOUT:.0f}s），放弃: {url}")
-            return ""
-
-        if "error" in call_resp:
-            print(f"  [MCP stdio] tool 调用失败: {call_resp['error']}")
-            return ""
-
-        content_blocks = (call_resp.get("result") or {}).get("content") or []
-        if content_blocks and isinstance(content_blocks, list):
-            text = content_blocks[0].get("text", "")
-            return text if len(text) > 100 else ""
-        return ""
-
-    except Exception as e:
-        print(f"  [MCP stdio] 通信失败: {e}")
-        return ""
+        return f"{prefix}Contents of {url}:\n{content[:_MAX_INPUT_CHARS]}".strip()
     finally:
-        try:
-            proc.stdin.close()
-        except Exception:
-            pass
-        try:
-            # 超时场景下进程可能还在跑，先 terminate 再 wait；杀不掉就 kill
-            proc.terminate()
-            proc.wait(timeout=5)
-        except Exception:
-            try:
-                proc.kill()
-                proc.wait(timeout=5)
-            except Exception:
-                pass
+        httpx.AsyncClient = original_client
+
+
+def _fetch_raw_via_stdio(url: str) -> str:
+    """同步工具线程入口，复用官方 MCP SDK 的 stdio transport。"""
+    try:
+        return asyncio.run(
+            asyncio.wait_for(_fetch_with_official_mcp(url), timeout=_FETCH_TIMEOUT)
+        ) or ""
+    except TimeoutError:
+        print(f"  [MCP fetch] 抓取超时（>{_FETCH_TIMEOUT:.0f}s），放弃: {url}")
+    except Exception as e:
+        print(f"  [MCP fetch] 抓取失败: {e}")
+    return ""
 
 
 def _save_raw(url: str, content: str) -> None:

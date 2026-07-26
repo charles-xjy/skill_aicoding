@@ -21,18 +21,70 @@ from datetime import datetime
 
 def _renumber_search_report(text: str, offset: int) -> tuple[str, int]:
     """
-    将 search_agent 报告中所有 [n] 引注和来源列表按 offset 连续偏移。
-    返回 (重编号后的文本, 本报告包含的最大引用编号)。
-    offset=0 时原样返回，只统计数量。
+    将 search_agent 报告中的来源按 URL 去重后重新编号，并按 offset 连续偏移。
+    search_agent 可能把多轮搜索的来源列表直接拼接，导致原始编号重复；
+    不能简单使用 max([n]) 作为下一份报告的偏移量。
+    返回 (重编号后的文本, 本报告实际包含的唯一来源数量)。
     """
-    nums = [int(m) for m in _re.findall(r'\[(\d+)\]', text)]
-    if not nums:
+    source_match = _re.search(r"(?ms)(?:^|\n)##\s*来源\s*\n", text)
+    if not source_match:
+        nums = [int(m) for m in _re.findall(r"\[(\d+)\]", text)]
+        if not nums:
+            return text, 0
+        max_num = max(nums)
+        result = _re.sub(
+            r"\[(\d+)\]",
+            lambda m: f"[{int(m.group(1)) + offset}]",
+            text,
+        )
+        return result, max_num
+
+    body = text[: source_match.start()]
+    source_text = text[source_match.end() :]
+    source_lines = source_text.splitlines()
+    entries: list[tuple[int, str, str]] = []
+    seen_urls: set[str] = set()
+    original_to_new: dict[int, int] = {}
+    next_number = offset + 1
+
+    for line in source_lines:
+        match = _re.match(
+            r"^\s*(?:[-*]\s*)?\[(\d+)\]\s+(.*?)\s+-\s+(https?://\S+)\s*$",
+            line,
+        )
+        if not match:
+            continue
+        original_number = int(match.group(1))
+        url = match.group(3).rstrip(".,;")
+        if url in seen_urls:
+            # 同一 URL 在多轮搜索中重复出现，只保留一条来源。
+            original_to_new.setdefault(
+                original_number,
+                next(
+                    number
+                    for number, _, existing_url in entries
+                    if existing_url == url
+                ),
+            )
+            continue
+        seen_urls.add(url)
+        original_to_new.setdefault(original_number, next_number)
+        entries.append((next_number, match.group(2).strip(), url))
+        next_number += 1
+
+    if not entries:
         return text, 0
-    max_num = max(nums)
-    if offset == 0:
-        return text, max_num
-    result = _re.sub(r'\[(\d+)\]', lambda m: f'[{int(m.group(1)) + offset}]', text)
-    return result, max_num
+
+    def replace_citation(match: _re.Match) -> str:
+        original = int(match.group(1))
+        number = original_to_new.get(original)
+        return f"[{number}]" if number is not None else match.group(0)
+
+    renumbered_body = _re.sub(r"\[(\d+)\]", replace_citation, body)
+    normalized_sources = "\n".join(
+        f"[{number}] {title} - {url}" for number, title, url in entries
+    )
+    return f"{renumbered_body.rstrip()}\n\n## 来源\n{normalized_sources}", len(entries)
 
 # ── Skill 工具函数 ────────────────────────────────────────────────────────────
 _SKILLS_DIR = Path(__file__).parent.parent / "skills"
@@ -619,7 +671,7 @@ async def supervisor_node(state: Dict) -> Dict:
                     src_section = part.split("## 来源", 1)[1].strip()
                     for line in src_section.splitlines():
                         stripped = line.strip()
-                        if stripped and _re.match(r'\[\d+\]', stripped):
+                        if stripped and _re.match(r'(?:[-*]\s*)?\[\d+\]', stripped):
                             all_source_lines.append(stripped)
             if all_source_lines:
                 sources_block = "\n".join(all_source_lines)
@@ -767,7 +819,7 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                                 src = renumbered.split("## 来源", 1)[1].strip()
                                 for line in src.splitlines():
                                     s = line.strip()
-                                    if s and _re.match(r'\[\d+\]', s):
+                                    if s and _re.match(r'(?:[-*]\s*)?\[\d+\]', s):
                                         fallback_lines.append(s)
                     if fallback_lines:
                         response_content += "\n\n## 来源\n" + "\n".join(fallback_lines)

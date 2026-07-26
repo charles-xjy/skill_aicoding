@@ -9,7 +9,7 @@ import React from "react";
 
 export default function DemoPage(): React.ReactNode {
   return (
-    <React.Suspense fallback={<div>Loading (layout)...</div>}>
+    <React.Suspense fallback={<div>正在加载页面...</div>}>
       <Toaster />
       <ThreadProvider>
         <StreamProvider>

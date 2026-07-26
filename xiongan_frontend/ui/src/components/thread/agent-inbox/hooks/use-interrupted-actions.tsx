@@ -113,8 +113,8 @@ export default function useInterruptedActions({
     );
 
     if (!decision) {
-      toast.error("Error", {
-        description: error ?? "Unsupported response type.",
+      toast.error("错误", {
+        description: error ?? "不支持的响应类型。",
         duration: 5000,
         richColors: true,
         closeButton: true,
@@ -123,7 +123,7 @@ export default function useInterruptedActions({
     }
 
     if (error) {
-      toast.error("Error", {
+      toast.error("错误", {
         description: error,
         duration: 5000,
         richColors: true,
@@ -145,8 +145,8 @@ export default function useInterruptedActions({
         return;
       }
 
-      toast("Success", {
-        description: "Response submitted successfully.",
+      toast("提交成功", {
+        description: "响应已成功提交。",
         duration: 5000,
       });
 
@@ -156,16 +156,16 @@ export default function useInterruptedActions({
       errorOccurred = true;
 
       if ("message" in error && error.message.includes("Invalid assistant")) {
-        toast("Error: Invalid assistant ID", {
+        toast("错误：助手 ID 无效", {
           description:
-            "The provided assistant ID was not found in this graph. Please update the assistant ID in the settings and try again.",
+            "当前图中找不到指定的助手 ID，请在设置中修改后重试。",
           richColors: true,
           closeButton: true,
           duration: 5000,
         });
       } else {
-        toast.error("Error", {
-          description: "Failed to submit response.",
+        toast.error("错误", {
+          description: "响应提交失败。",
           richColors: true,
           closeButton: true,
           duration: 5000,
@@ -197,14 +197,14 @@ export default function useInterruptedActions({
         },
       );
 
-      toast("Success", {
-        description: "Marked thread as resolved.",
+      toast("操作成功", {
+        description: "该对话已标记为已解决。",
         duration: 3000,
       });
     } catch (error) {
       console.error("Error marking thread as resolved", error);
-      toast.error("Error", {
-        description: "Failed to mark thread as resolved.",
+      toast.error("错误", {
+        description: "无法将该对话标记为已解决。",
         richColors: true,
         closeButton: true,
         duration: 3000,

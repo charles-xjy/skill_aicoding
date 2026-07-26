@@ -117,7 +117,7 @@ const StreamSessionInner = ({
   useEffect(() => {
     checkGraphStatus(apiUrl, apiKey, authScheme).then((ok) => {
       if (!ok) {
-        toast.error("Failed to connect to LangGraph server", {
+        toast.error("无法连接到 LangGraph 服务", {
           description: () => (
             <p>
               Please ensure your graph is running at <code>{apiUrl}</code> and
@@ -264,11 +264,10 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
           >
             <div className="flex flex-col gap-2">
               <Label htmlFor="apiUrl">
-                Deployment URL<span className="text-rose-500">*</span>
+                服务地址<span className="text-rose-500">*</span>
               </Label>
               <p className="text-muted-foreground text-sm">
-                This is the URL of your LangGraph deployment. Can be a local, or
-                production deployment.
+                LangGraph 服务的访问地址，可以是本地服务或生产环境地址。
               </p>
               <Input
                 id="apiUrl"
@@ -281,12 +280,10 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="assistantId">
-                Assistant / Graph ID<span className="text-rose-500">*</span>
+                助手 / 图 ID<span className="text-rose-500">*</span>
               </Label>
               <p className="text-muted-foreground text-sm">
-                This is the ID of the graph (can be the graph name), or
-                assistant to fetch threads from, and invoke when actions are
-                taken.
+                用于读取历史对话和执行请求的图或助手 ID，也可以填写图名称。
               </p>
               <Input
                 id="assistantId"
@@ -298,12 +295,10 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="apiKey">LangSmith API Key</Label>
+              <Label htmlFor="apiKey">LangSmith API 密钥</Label>
               <p className="text-muted-foreground text-sm">
-                This is <strong>NOT</strong> required if using a local LangGraph
-                server. This value is stored in your browser's local storage and
-                is only used to authenticate requests sent to your LangGraph
-                server.
+                使用本地 LangGraph 服务时<strong>无需填写</strong>。该值只保存在
+                浏览器本地存储中，用于验证发送到 LangGraph 服务的请求。
               </p>
               <PasswordInput
                 id="apiKey"
@@ -318,10 +313,10 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
               <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="agentBuilderEnabled">
-                    Built with Agent Builder
+                    使用 Agent Builder 构建
                   </Label>
                   <p className="text-muted-foreground text-sm">
-                    Enable this for Agent Builder deployments.
+                    如果服务由 Agent Builder 部署，请启用此选项。
                   </p>
                 </div>
                 <Switch
@@ -337,7 +332,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
                 type="submit"
                 size="lg"
               >
-                Continue
+                继续
                 <ArrowRight className="size-5" />
               </Button>
             </div>

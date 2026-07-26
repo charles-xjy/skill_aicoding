@@ -163,7 +163,7 @@ export function buildDecisionFromState(
   selectedSubmitType: SubmitType | undefined,
 ): { decision?: Decision; error?: string } {
   if (!responses.length) {
-    return { error: "Please enter a response." };
+    return { error: "请输入响应内容。" };
   }
 
   const selectedDecision = responses.find(
@@ -171,7 +171,7 @@ export function buildDecisionFromState(
   );
 
   if (!selectedDecision) {
-    return { error: "No response selected." };
+    return { error: "尚未选择响应方式。" };
   }
 
   if (selectedDecision.type === "approve") {
@@ -181,7 +181,7 @@ export function buildDecisionFromState(
   if (selectedDecision.type === "reject") {
     const message = selectedDecision.message?.trim();
     if (!message) {
-      return { error: "Please provide a rejection reason." };
+      return { error: "请填写拒绝原因。" };
     }
     return { decision: { type: "reject", message } };
   }
@@ -199,7 +199,7 @@ export function buildDecisionFromState(
     };
   }
 
-  return { error: "Unsupported response type." };
+  return { error: "不支持的响应类型。" };
 }
 
 export function constructOpenInStudioURL(

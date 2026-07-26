@@ -26,15 +26,15 @@ export async function GET(req: NextRequest) {
     file.includes("/") ||
     file.includes("\\")
   ) {
-    return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
+    return NextResponse.json({ error: "文件名无效" }, { status: 400 });
   }
   if (!ALLOWED_EXT.has(path.extname(file).toLowerCase())) {
-    return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    return NextResponse.json({ error: "不支持的文件类型" }, { status: 400 });
   }
 
   const filePath = path.join(IMAGE_DIR, file);
   if (!fs.existsSync(filePath)) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "未找到文件" }, { status: 404 });
   }
 
   const buffer = fs.readFileSync(filePath);

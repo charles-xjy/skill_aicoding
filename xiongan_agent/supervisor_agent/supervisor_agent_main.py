@@ -102,6 +102,25 @@ async def _get_main_model():
     return _main_model
 
 
+def _response_text(response) -> str:
+    """Extract visible text from string or content-block model responses."""
+    raw = getattr(response, "content", "")
+    if isinstance(raw, str):
+        content = raw
+    elif isinstance(raw, list):
+        content = "".join(
+            str(block.get("text", ""))
+            for block in raw
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    else:
+        content = str(raw or "")
+
+    if "</think>" in content:
+        content = content.split("</think>", 1)[-1]
+    return content.strip()
+
+
 # =============================================================================================
 # 2. State 定义
 # =============================================================================================
@@ -248,9 +267,19 @@ async def supervisor_node(state: Dict) -> Dict:
         # max_tokens 限制总生成量（含思考块）；思考模型需要足够预算，否则思考耗尽后无法输出 JSON
         router_model = (await _get_main_model()).bind(max_tokens=2048)
         response = await router_model.ainvoke([system_prompt] + messages)
-        content = response.content
-        if "</think>" in content:
-            content = content.split("</think>", 1)[-1].strip()
+        content = _response_text(response)
+
+        # 部分本地模型在首次唤醒时可能返回空 content。空 AIMessage 会被正常
+        # checkpoint，但前端没有任何可渲染内容，因此重试一次并提供最终兜底。
+        if not content:
+            print(
+                f"\n\033[33m[{datetime.now().isoformat()}] "
+                "⚠️  路由模型返回空内容，正在重试\033[0m"
+            )
+            response = await router_model.ainvoke([system_prompt] + messages)
+            content = _response_text(response)
+        if not content:
+            content = "请提供具体的咨询内容，例如需要分析的区域、时间范围或问题。"
 
         # ── 3a. 检测是否调用了 skill ─────────────────────────────────────────
         skill_call = _re.search(r'\{[^{}]*"skill"\s*:\s*"([^"]+)"[^{}]*\}', content)

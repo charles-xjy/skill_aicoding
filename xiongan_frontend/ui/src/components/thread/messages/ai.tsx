@@ -15,90 +15,12 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
-import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
 /** 去除思考过程，只返回 </think> 之后的正文 */
 function stripThinkContent(text: string): string {
   const closeTag = "</think>";
   const idx = text.indexOf(closeTag);
   if (idx === -1) return text;
   return text.slice(idx + closeTag.length).trimStart();
-}
-
-const AGENT_LABEL: Record<string, string> = {
-  image_agent: "🛰 卫星影像",
-  search_agent: "🔍 网络搜索",
-};
-
-/** 从 image_agent 输出文本中提取 .jpg/.png 文件名 */
-function extractImageFiles(text: string): string[] {
-  const matches = text.match(/[\w一-鿿\-（）()]+_\d{4}\.(jpg|jpeg|png)/gi) ?? [];
-  return [...new Set(matches)];
-}
-
-/** 可折叠的 agent 中间输出卡片 */
-function AgentOutputCard({ agentName, query, content }: { agentName: string; query: string; content: string }) {
-  const [open, setOpen] = useState(false);
-  const label = AGENT_LABEL[agentName] ?? agentName;
-  const imageFiles = agentName === "image_agent" ? extractImageFiles(content) : [];
-  const sourceSection = content.split("## 来源")[1];
-  const sourceCount = sourceSection
-    ? (sourceSection.match(/^\s*(?:[-*]\s*)?\[\d+\]/gm) ?? []).length || undefined
-    : undefined;
-
-  return (
-    <div className="rounded-lg border border-border/40 bg-muted/15 text-sm">
-      <button
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
-        onClick={() => setOpen((v) => !v)}
-      >
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
-        )}
-        <span className="shrink-0 font-medium text-foreground/60">{label}</span>
-        <span className="truncate text-xs text-foreground/45">{query}</span>
-        {sourceCount != null && !open && (
-          <span className="ml-auto shrink-0 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/40">
-            {sourceCount} 条来源
-          </span>
-        )}
-      </button>
-
-      {/* 卫星图片缩略图网格（始终展示，不需要点击展开） */}
-      {imageFiles.length > 0 && (
-        <div className="border-t border-border/30 px-3 py-2">
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-            {imageFiles.map((file) => (
-              <a
-                key={file}
-                href={`/api/local-image?file=${encodeURIComponent(file)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative"
-              >
-                <img
-                  src={`/api/local-image?file=${encodeURIComponent(file)}`}
-                  alt={file}
-                  className="aspect-square w-full rounded object-cover transition-opacity group-hover:opacity-80"
-                />
-                <span className="absolute bottom-0 left-0 right-0 truncate rounded-b bg-black/50 px-1 py-0.5 text-center text-[10px] text-white">
-                  {file.match(/_(\d{4})\./)?.[1] ?? file}
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {open && content && (
-        <div className="border-t border-border/30 px-3 py-2 text-foreground/70">
-          <MarkdownText>{content}</MarkdownText>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function CustomComponent({
@@ -193,32 +115,22 @@ export function AssistantMessage({
   isLoading: boolean;
   handleRegenerate: (parentCheckpoint: Checkpoint | null | undefined) => void;
 }) {
-  const msgName = (message as Record<string, unknown> | undefined)?.name as string | undefined;
+  const msgName = (message as Record<string, unknown> | undefined)?.name as
+    string | undefined;
   const content = message?.content ?? [];
   const contentString = getContentString(content);
   const mainContent = stripThinkContent(contentString);
-
-  // 中间 agent 输出：折叠卡片
-  if (msgName === "internal") {
-    const prefixMatch = contentString.match(/^【(\w+) 执行结果】\n([\s\S]*)$/);
-    const agentName = prefixMatch?.[1] ?? "agent";
-    const rest = stripThinkContent(prefixMatch?.[2] ?? contentString).trim();
-    // 第一行是搜索 query，其余是报告正文
-    const nlIdx = rest.indexOf("\n");
-    const query = nlIdx === -1 ? rest : rest.slice(0, nlIdx);
-    const agentContent = nlIdx === -1 ? "" : rest.slice(nlIdx + 1).trim();
-    return (
-      <div className="mr-auto w-full">
-        <AgentOutputCard agentName={agentName} query={query} content={agentContent} />
-      </div>
-    );
-  }
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
     parseAsBoolean.withDefault(false),
   );
 
   const thread = useStreamContext();
+
+  // 子 Agent 卡片由 task_plan 状态驱动，从 in_progress 阶段开始渲染。
+  // 完成后的 internal 消息只保留在状态中供卡片读取，避免重复显示。
+  if (msgName === "internal") return null;
+
   const isLastMessage =
     thread.messages[thread.messages.length - 1].id === message?.id;
   const hasNoAIOrToolMessages = !thread.messages.find(

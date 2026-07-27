@@ -133,6 +133,7 @@ from langchain_core.runnables import RunnableConfig
 
 # LangGraph imports
 from langgraph.graph import StateGraph, START, END
+from langgraph.config import get_stream_writer
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 # Subgraph imports
@@ -746,6 +747,45 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
         else:
             agent_input = task_description
 
+        try:
+            stream_writer = get_stream_writer()
+        except RuntimeError:
+            stream_writer = None
+
+        def emit_activity(stage: str, content: str = "", node: str = "") -> None:
+            if stream_writer is None:
+                return
+            stream_writer(
+                {
+                    "type": "agent_activity",
+                    "task_id": current_task.get("id", current_index + 1),
+                    "agent": subgraph_name,
+                    "stage": stage,
+                    "node": node,
+                    "input": agent_input,
+                    "content": content,
+                }
+            )
+
+        def visible_message_text(message) -> str:
+            if getattr(message, "tool_calls", None):
+                return ""
+            content = message.content if hasattr(message, "content") else str(message)
+            if isinstance(content, list):
+                content = "\n".join(
+                    block.get("text", "")
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+            content = str(content or "").strip()
+            if "</think>" in content:
+                content = content.split("</think>", 1)[-1].strip()
+            elif "<think>" in content:
+                return ""
+            return content
+
+        emit_activity("start")
+
         parent_thread_id = config.get("configurable", {}).get("thread_id", "default")
         sub_thread_id = f"sub_{subgraph_name}_task{current_index}_of_{parent_thread_id}"
         sub_config = {"configurable": {"thread_id": sub_thread_id}}
@@ -777,6 +817,23 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                     for node_name, node_data in chunk.get("data", {}).items():
                         if "messages" in node_data:
                             result = node_data
+                            if (
+                                subgraph_name in {"search_agent", "image_agent"}
+                                and node_name in {"tools", "summarize", "model"}
+                            ):
+                                visible_parts = [
+                                    visible_message_text(message)
+                                    for message in node_data["messages"]
+                                ]
+                                visible_content = "\n\n".join(
+                                    part for part in visible_parts if part
+                                )
+                                if visible_content:
+                                    emit_activity(
+                                        "output",
+                                        visible_content,
+                                        node_name,
+                                    )
 
                 if not (result and "messages" in result):
                     raise RuntimeError(f"{subgraph_name} 子图未返回任何消息")
@@ -804,6 +861,7 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                 print(f"\n\033[32m{log_entry}{RESET}")
                 preview = response_content.replace("\n", " ")[:400]
                 print(f"\033[2m  内容摘要: {preview}{'...' if len(response_content) > 400 else ''}\033[0m")
+                emit_activity("complete", response_content)
 
                 is_final = subgraph_name == "analysis_agent"
 
@@ -847,6 +905,7 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                 execution_log.append(error_msg)
                 print(f"\n\033[31m{error_msg}{RESET}")
                 print(f"\033[31m{_tb.format_exc()}\033[0m")
+                emit_activity("retry", str(e))
                 if attempt < MAX_ATTEMPTS - 1:
                     log_retry = f"[{datetime.now().isoformat()}] 🔄 重试 {subgraph_name} ({attempt + 2}/{MAX_ATTEMPTS})"
                     execution_log.append(log_retry)
@@ -856,6 +915,7 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
         log_entry = f"[{datetime.now().isoformat()}] ❌ {subgraph_name} {MAX_ATTEMPTS} 次均失败，跳过此任务"
         execution_log.append(log_entry)
         print(f"\n\033[31m{log_entry}{RESET}")
+        emit_activity("error", str(last_exc))
         return {
             "messages": [
                 AIMessage(

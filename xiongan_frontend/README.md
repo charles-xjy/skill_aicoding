@@ -47,10 +47,35 @@ ANALYSIS_MODEL=remote     # analysis_agent 模型：remote（主模型）或 loc
 
 #### 3. 启动服务器
 
+**Linux / macOS：**
+
 ```bash
 cd xiongan_frontend
 langgraph dev --allow-blocking --host 0.0.0.0
 ```
+
+**Windows（PowerShell）：**
+
+Windows 中文系统必须设置 `PYTHONUTF8=1`，否则 langgraph-api 内部读取 `.env` 时会报 GBK 解码错误。
+
+```powershell
+$env:PYTHONUTF8=1; cd xiongan_frontend; langgraph dev --allow-blocking --host 0.0.0.0
+```
+
+如果 `langgraph.exe` 被应用程序控制策略（AppLocker/WDAC）拦截，报错"应用程序控制策略已阻止此文件"，改用 Python 模块方式启动：
+
+```powershell
+$env:PYTHONUTF8=1; cd xiongan_frontend; python -m langgraph_cli dev --allow-blocking --host 0.0.0.0
+```
+
+> 前提：需要先在 langgraph_cli 包目录下创建 `__main__.py`（内容见下方），或确认已存在。
+>
+> ```python
+> # <site-packages>/langgraph_cli/__main__.py
+> from langgraph_cli.cli import cli
+>
+> cli()
+> ```
 
 启动成功后终端会打印：
 

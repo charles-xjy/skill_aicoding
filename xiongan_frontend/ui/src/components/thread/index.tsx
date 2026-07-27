@@ -2,12 +2,13 @@ import { v4 as uuidv4 } from "uuid";
 import { Fragment, ReactNode, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useStreamContext } from "@/providers/Stream";
+import { AgentActivity, useStreamContext } from "@/providers/Stream";
 import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { AssistantMessage, AssistantMessageLoading } from "./messages/ai";
 import { HumanMessage } from "./messages/human";
+import { AgentOutputCard } from "./agent-output-card";
 import {
   DO_NOT_RENDER_ID_PREFIX,
   ensureToolCallsHaveResponses,
@@ -31,46 +32,121 @@ import {
 interface TaskItem {
   id: number;
   description: string;
+  query?: string;
   agent: string;
   status: "pending" | "in_progress" | "completed" | "error";
+  result?: string | null;
 }
 
 function StatusIcon({ status }: { status: string }) {
   if (status === "in_progress")
-    return <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-amber-500" />;
+    return (
+      <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-amber-500" />
+    );
   if (status === "completed")
     return <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />;
   if (status === "error")
     return <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
-  return <Circle className="h-4 w-4 shrink-0 text-foreground/25" />;
+  return <Circle className="text-foreground/25 h-4 w-4 shrink-0" />;
 }
 
-function TaskPlanView({ tasks }: { tasks: TaskItem[] }) {
+function TaskPlanView({
+  tasks,
+  activities,
+}: {
+  tasks: TaskItem[];
+  activities: Record<string, AgentActivity>;
+}) {
   const done = tasks.filter((t) => t.status === "completed").length;
+
+  const getTaskInput = (task: TaskItem) =>
+    task.agent === "search_agent" && task.query?.trim()
+      ? task.query.trim()
+      : task.description.trim();
+
+  const getTaskOutput = (task: TaskItem) => {
+    const result = task.result?.trim();
+    if (!result) return "";
+
+    const match = result.match(/^【\w+ 执行结果】\n([\s\S]*)$/);
+    if (!match) return result;
+
+    const payload = match[1].trim();
+    const input = getTaskInput(task);
+    return payload.startsWith(`${input}\n`)
+      ? payload.slice(input.length).trim()
+      : payload;
+  };
+
+  const getActivityOutput = (task: TaskItem) => {
+    const entries = activities[String(task.id)]?.entries ?? [];
+    const completed = [...entries]
+      .reverse()
+      .find((entry) => entry.stage === "complete");
+    if (completed) return completed.content;
+
+    return entries
+      .map((entry) => {
+        const label =
+          entry.stage === "retry"
+            ? "执行重试"
+            : entry.stage === "error"
+              ? "执行错误"
+              : entry.node === "tools"
+                ? "工具输出"
+                : "当前输出";
+        return `### ${label}\n${entry.content}`;
+      })
+      .join("\n\n");
+  };
+
   return (
-    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+    <div className="border-border/50 bg-muted/20 rounded-xl border px-4 py-3 text-sm">
+      <p className="text-foreground/50 mb-2 text-xs font-semibold tracking-wide uppercase">
         任务进度 {done}/{tasks.length}
       </p>
       <div className="flex flex-col gap-1.5">
-        {tasks.map((t) => (
-          <div key={t.id} className="flex items-center gap-2">
-            <StatusIcon status={t.status} />
-            <span
-              className={cn(
-                "flex-1 truncate",
-                t.status === "completed"
-                  ? "text-foreground/40"
-                  : "text-foreground/80",
-              )}
+        {tasks.map((t) => {
+          const showAgentCard =
+            t.status !== "pending" &&
+            (t.agent === "search_agent" || t.agent === "image_agent");
+
+          if (showAgentCard) {
+            const input = getTaskInput(t);
+            return (
+              <AgentOutputCard
+                key={t.id}
+                agentName={t.agent}
+                title={input.split("\n")[0]}
+                input={input}
+                content={getTaskOutput(t) || getActivityOutput(t)}
+                status={t.status}
+              />
+            );
+          }
+
+          return (
+            <div
+              key={t.id}
+              className="flex items-center gap-2"
             >
-              {t.id}.&nbsp;{t.description.split("\n")[0].slice(0, 60)}
-            </span>
-            <span className="shrink-0 text-xs text-foreground/30">
-              [{t.agent}]
-            </span>
-          </div>
-        ))}
+              <StatusIcon status={t.status} />
+              <span
+                className={cn(
+                  "flex-1 truncate",
+                  t.status === "completed"
+                    ? "text-foreground/40"
+                    : "text-foreground/80",
+                )}
+              >
+                {t.id}.&nbsp;{t.description.split("\n")[0].slice(0, 60)}
+              </span>
+              <span className="text-foreground/30 shrink-0 text-xs">
+                [{t.agent}]
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -191,8 +267,8 @@ export function Thread() {
 
   const stream = useStreamContext();
   const isLoading = stream.isLoading;
-  const taskPlan = (stream.values as Record<string, unknown>)
-    ?.task_plan as TaskItem[] | undefined;
+  const taskPlan = (stream.values as Record<string, unknown>)?.task_plan as
+    TaskItem[] | undefined;
 
   const messages = stream.messages.filter(
     (m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX),
@@ -236,7 +312,6 @@ export function Thread() {
     }
   }, [stream.error]);
 
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading)
@@ -259,7 +334,7 @@ export function Thread() {
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
       {
-        streamMode: ["values"],
+        streamMode: ["values", "custom"],
         streamSubgraphs: true,
         streamResumable: true,
         optimisticValues: (prev) => ({
@@ -283,7 +358,7 @@ export function Thread() {
   ) => {
     stream.submit(undefined, {
       checkpoint: parentCheckpoint,
-      streamMode: ["values"],
+      streamMode: ["values", "custom"],
       streamSubgraphs: true,
       streamResumable: true,
     });
@@ -442,7 +517,9 @@ export function Thread() {
                     // 在最后一条 human 消息后插入任务进度列表
                     const isLastHuman =
                       message.type === "human" &&
-                      !messages.slice(index + 1).some((m) => m.type === "human");
+                      !messages
+                        .slice(index + 1)
+                        .some((m) => m.type === "human");
                     return (
                       <Fragment key={message.id || `${message.type}-${index}`}>
                         {message.type === "human" ? (
@@ -458,7 +535,10 @@ export function Thread() {
                           />
                         )}
                         {isLastHuman && !!taskPlan?.length && (
-                          <TaskPlanView tasks={taskPlan} />
+                          <TaskPlanView
+                            tasks={taskPlan}
+                            activities={stream.agentActivities}
+                          />
                         )}
                       </Fragment>
                     );
@@ -473,7 +553,10 @@ export function Thread() {
                       handleRegenerate={handleRegenerate}
                     />
                   )}
-                  {isLoading && <AssistantMessageLoading />}
+                  {isLoading &&
+                    !taskPlan?.some(
+                      (task) => task.status === "in_progress",
+                    ) && <AssistantMessageLoading />}
                 </>
               }
               footer={

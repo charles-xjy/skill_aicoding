@@ -28,6 +28,26 @@ import { useThreads } from "./Thread";
 import { resolveApiUrl } from "./client";
 import { toast } from "sonner";
 
+export type AgentActivityEvent = {
+  type: "agent_activity";
+  task_id: string | number;
+  agent: string;
+  stage: "start" | "output" | "complete" | "retry" | "error";
+  node?: string;
+  input?: string;
+  content?: string;
+};
+
+export type AgentActivity = {
+  agent: string;
+  input: string;
+  entries: Array<{
+    stage: AgentActivityEvent["stage"];
+    node: string;
+    content: string;
+  }>;
+};
+
 export type StateType = { messages: Message[]; ui?: UIMessage[] };
 
 const useTypedStream = useStream<
@@ -38,12 +58,24 @@ const useTypedStream = useStream<
       ui?: (UIMessage | RemoveUIMessage)[] | UIMessage | RemoveUIMessage;
       context?: Record<string, unknown>;
     };
-    CustomEventType: UIMessage | RemoveUIMessage;
+    CustomEventType: UIMessage | RemoveUIMessage | AgentActivityEvent;
   }
 >;
 
-type StreamContextType = ReturnType<typeof useTypedStream>;
+type StreamContextType = ReturnType<typeof useTypedStream> & {
+  agentActivities: Record<string, AgentActivity>;
+};
 const StreamContext = createContext<StreamContextType | undefined>(undefined);
+
+function isAgentActivityEvent(event: unknown): event is AgentActivityEvent {
+  return (
+    typeof event === "object" &&
+    event !== null &&
+    "type" in event &&
+    event.type === "agent_activity" &&
+    "task_id" in event
+  );
+}
 
 async function sleep(ms = 4000) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -87,6 +119,9 @@ const StreamSessionInner = ({
 }) => {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { getThreads, setThreads } = useThreads();
+  const [agentActivities, setAgentActivities] = useState<
+    Record<string, AgentActivity>
+  >({});
 
   const streamValue = useTypedStream({
     apiUrl,
@@ -100,6 +135,55 @@ const StreamSessionInner = ({
     threadId: threadId ?? null,
     fetchStateHistory: true,
     onCustomEvent: (event, options) => {
+      if (isAgentActivityEvent(event)) {
+        const taskId = String(event.task_id);
+        setAgentActivities((previous) => {
+          if (event.stage === "start") {
+            return {
+              ...previous,
+              [taskId]: {
+                agent: event.agent,
+                input: event.input ?? "",
+                entries: [],
+              },
+            };
+          }
+
+          const current = previous[taskId] ?? {
+            agent: event.agent,
+            input: event.input ?? "",
+            entries: [],
+          };
+          const content = event.content?.trim() ?? "";
+          if (!content) return previous;
+
+          const lastEntry = current.entries[current.entries.length - 1];
+          if (
+            lastEntry?.stage === event.stage &&
+            lastEntry.node === (event.node ?? "") &&
+            lastEntry.content === content
+          ) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            [taskId]: {
+              ...current,
+              entries: [
+                ...current.entries,
+                {
+                  stage: event.stage,
+                  node: event.node ?? "",
+                  content,
+                },
+              ],
+            },
+          };
+        });
+        return;
+      }
+
       if (isUIMessage(event) || isRemoveUIMessage(event)) {
         options.mutate((prev) => {
           const ui = uiMessageReducer(prev.ui ?? [], event);
@@ -133,7 +217,7 @@ const StreamSessionInner = ({
   }, [apiKey, apiUrl, authScheme]);
 
   return (
-    <StreamContext.Provider value={streamValue}>
+    <StreamContext.Provider value={{ ...streamValue, agentActivities }}>
       {children}
     </StreamContext.Provider>
   );
@@ -240,7 +324,8 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
               </h1>
             </div>
             <p className="text-muted-foreground">
-              欢迎使用城市治理智能体！开始前，请输入部署地址以及 assistant / graph ID。
+              欢迎使用城市治理智能体！开始前，请输入部署地址以及 assistant /
+              graph ID。
             </p>
           </div>
           <form

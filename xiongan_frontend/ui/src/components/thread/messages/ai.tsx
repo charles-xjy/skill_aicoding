@@ -37,11 +37,14 @@ function extractImageFiles(text: string): string[] {
 }
 
 /** 可折叠的 agent 中间输出卡片 */
-function AgentOutputCard({ agentName, content }: { agentName: string; content: string }) {
+function AgentOutputCard({ agentName, query, content }: { agentName: string; query: string; content: string }) {
   const [open, setOpen] = useState(false);
   const label = AGENT_LABEL[agentName] ?? agentName;
-  const preview = content.replace(/\n+/g, " ").slice(0, 80);
   const imageFiles = agentName === "image_agent" ? extractImageFiles(content) : [];
+  const sourceSection = content.split("## 来源")[1];
+  const sourceCount = sourceSection
+    ? (sourceSection.match(/^\s*(?:[-*]\s*)?\[\d+\]/gm) ?? []).length || undefined
+    : undefined;
 
   return (
     <div className="rounded-lg border border-border/40 bg-muted/15 text-sm">
@@ -54,9 +57,12 @@ function AgentOutputCard({ agentName, content }: { agentName: string; content: s
         ) : (
           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
         )}
-        <span className="font-medium text-foreground/60">{label} 完成</span>
-        {!open && (
-          <span className="ml-1 truncate text-xs text-foreground/35">{preview}</span>
+        <span className="shrink-0 font-medium text-foreground/60">{label}</span>
+        <span className="truncate text-xs text-foreground/45">{query}</span>
+        {sourceCount != null && !open && (
+          <span className="ml-auto shrink-0 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/40">
+            {sourceCount} 条来源
+          </span>
         )}
       </button>
 
@@ -86,7 +92,7 @@ function AgentOutputCard({ agentName, content }: { agentName: string; content: s
         </div>
       )}
 
-      {open && (
+      {open && content && (
         <div className="border-t border-border/30 px-3 py-2 text-foreground/70">
           <MarkdownText>{content}</MarkdownText>
         </div>
@@ -196,10 +202,14 @@ export function AssistantMessage({
   if (msgName === "internal") {
     const prefixMatch = contentString.match(/^【(\w+) 执行结果】\n([\s\S]*)$/);
     const agentName = prefixMatch?.[1] ?? "agent";
-    const agentContent = stripThinkContent(prefixMatch?.[2] ?? contentString).trim();
+    const rest = stripThinkContent(prefixMatch?.[2] ?? contentString).trim();
+    // 第一行是搜索 query，其余是报告正文
+    const nlIdx = rest.indexOf("\n");
+    const query = nlIdx === -1 ? rest : rest.slice(0, nlIdx);
+    const agentContent = nlIdx === -1 ? "" : rest.slice(nlIdx + 1).trim();
     return (
       <div className="mr-auto w-full">
-        <AgentOutputCard agentName={agentName} content={agentContent} />
+        <AgentOutputCard agentName={agentName} query={query} content={agentContent} />
       </div>
     );
   }

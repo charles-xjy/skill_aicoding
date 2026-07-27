@@ -828,7 +828,7 @@ async def create_subgraph_node(subgraph_name: str, checkpointer, factory_kwargs:
                     "messages": [
                         AIMessage(
                             # analysis_agent 是最终输出，直接用正文；其余标为 internal 前端过滤掉
-                            content=response_content if is_final else f"【{subgraph_name} 执行结果】\n{response_content}",
+                            content=response_content if is_final else f"【{subgraph_name} 执行结果】\n{agent_input}\n{response_content}",
                             name="final" if is_final else "internal",
                             metadata={
                                 "source": subgraph_name,

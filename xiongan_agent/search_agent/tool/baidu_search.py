@@ -234,6 +234,7 @@ def make_baidu_search_tool(model):
     轮次计数由子图 State 管理，工具本身不含计数逻辑。
     """
     _call_count = [0]
+    _result_index = [0]
 
     @tool
     def baidu_search(query: str) -> str:
@@ -272,10 +273,12 @@ def make_baidu_search_tool(model):
 
         fetchable = _score_and_select(results, query, model)
         sections = []
-        for i, r in enumerate(fetchable, 1):
+        for r in fetchable:
+            _result_index[0] += 1
+            i = _result_index[0]
             url   = r["href"]
             title = r.get("title", "")
-            print(f"\n  📥 [{i}/2] 抓取: {url}")
+            print(f"\n  📥 [{i}] 抓取: {url}")
             fetched = fetch_and_summarize_sync(url, model, query=query)
             if fetched:
                 _, summary = fetched

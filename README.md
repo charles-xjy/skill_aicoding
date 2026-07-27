@@ -175,7 +175,7 @@ LANGGRAPH_API_URL=http://127.0.0.1:2024
 ```bash
 cd /home/charles/mycode/skill_aicoding/xiongan_frontend
 conda activate langgraph
-langgraph dev --allow-blocking --host 0.0.0.0 --port 2024 --no-reload
+langgraph dev --allow-blocking --host 0.0.0.0 --port 2024
 ```
 
 服务完全就绪后会出现类似日志：
@@ -199,7 +199,7 @@ Application startup complete
 
 ```bash
 cd /home/charles/mycode/skill_aicoding/xiongan_frontend/ui
-pnpm dev -- --hostname 0.0.0.0 --port 3002
+pnpm dev --hostname 0.0.0.0 --port 3002
 ```
 
 访问地址：

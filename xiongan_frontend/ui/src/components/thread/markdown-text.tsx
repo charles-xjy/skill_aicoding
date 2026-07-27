@@ -39,16 +39,18 @@ function normalizeSourceList(markdown: string): string {
   if (!sourceText) return markdown;
 
   const entries = sourceText
-    .replace(/\s+(?=(?:[-*][ \t]*)?\[\d+\][ \t]+)/g, "\n")
+    .replace(/^[ \t]*[-*][ \t]+/gm, "")
+    .replace(/\s+(?=\[\d+\][ \t]+)/g, "\n")
     .split(/\n+/)
-    .map((entry) => entry.trim().replace(/^[-*][ \t]+/, ""))
+    .map((entry) => entry.trim())
     .filter(Boolean);
 
   if (!entries.length) return markdown;
 
-  return `${report}\n\n## 来源\n\n${entries
-    .map((entry) => `- ${entry}`)
-    .join("\n\n")}`;
+  // 来源用占位标记包裹，MarkdownTextImpl 会把它替换成紧凑容器（来源专用字号/行距），
+  // 避免复用正文 <p> 的大行距；内容为 [n] 标题 - url 逐行排列，无列表圆点。
+  // 仅做排版改善，不修改任何编号——编号语义由后端报告合并节点决定。
+  return `${report}\n\n## 来源\n\n<!--sources-->\n${entries.join("\n\n")}\n<!--/sources-->`;
 }
 
 interface CodeHeaderProps {
@@ -278,8 +280,27 @@ const defaultComponents: any = {
   },
 };
 
+const SOURCES_OPEN = "<!--sources-->";
+const SOURCES_CLOSE = "<!--/sources-->";
+
 const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
   const normalizedMarkdown = normalizeSourceList(children);
+
+  // normalizeSourceList 会把「## 来源」之后的条目放进 <!--sources--> 标记。
+  // 这里把它单独切出来，套一层 .markdown-sources 容器：来源用更紧凑的
+  // 字号与行距，不复用正文 <p> 的大行距。
+  const openIdx = normalizedMarkdown.indexOf(SOURCES_OPEN);
+  let body = normalizedMarkdown;
+  let sources = "";
+  if (openIdx !== -1) {
+    const closeIdx = normalizedMarkdown.indexOf(SOURCES_CLOSE, openIdx);
+    if (closeIdx !== -1) {
+      body = normalizedMarkdown.slice(0, openIdx).trimEnd();
+      sources = normalizedMarkdown
+        .slice(openIdx + SOURCES_OPEN.length, closeIdx)
+        .trim();
+    }
+  }
 
   return (
     <div className="markdown-content">
@@ -288,8 +309,18 @@ const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
         rehypePlugins={[rehypeKatex]}
         components={defaultComponents}
       >
-        {normalizedMarkdown}
+        {body}
       </ReactMarkdown>
+      {sources && (
+        <div className="markdown-sources">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={defaultComponents}
+          >
+            {sources}
+          </ReactMarkdown>
+        </div>
+      )}
     </div>
   );
 };
